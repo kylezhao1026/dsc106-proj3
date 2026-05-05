@@ -24,14 +24,17 @@ import csv
 import json
 import math
 import re
+import textwrap
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime, timedelta
 from io import BytesIO
 from pathlib import Path
 from typing import Iterable
 
+import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
+from matplotlib.ticker import NullLocator
 import numpy as np
 import requests
 from PIL import Image
@@ -55,6 +58,25 @@ DEFAULT_REGIONS = [
     Region("Southeast US", (-92.0, 25.0, -75.0, 36.5)),
     Region("Amazon Basin", (-75.0, -15.0, -50.0, 5.0)),
 ]
+
+REGION_NDVI_SERIES_COLORS: dict[str, str] = {
+    "California Central Valley": "#2563eb",
+    "Pacific Northwest": "#0d9488",
+    "Great Plains": "#d97706",
+    "Southeast US": "#7c3aed",
+    "Amazon Basin": "#16a34a",
+}
+
+# Short labels for trend callouts on the combined regional NDVI figure.
+REGION_TREND_CALLOUT: dict[str, str] = {
+    "California Central Valley": (
+        "Central Valley: builds in cool/wet months, eases when summer stress hits"
+    ),
+    "Pacific Northwest": "Pacific NW: peaks late spring–summer, softer through fall–winter",
+    "Great Plains": "Great Plains: steep winter lows vs. mid-year green peak",
+    "Southeast US": "Southeast: broad spring–summer high, milder winter dip",
+    "Amazon Basin": "Amazon: stays high year-round; small month-to-month ripples only",
+}
 
 
 def month_starts(start: str, end: str) -> list[date]:
@@ -204,6 +226,396 @@ def write_json(rows: list[dict[str, object]], path: Path) -> None:
     path.write_text(json.dumps(rows, indent=2), encoding="utf-8")
 
 
+def load_csv_rows(path: Path) -> list[dict[str, object]]:
+    with path.open(newline="", encoding="utf-8") as file:
+        raw = list(csv.DictReader(file))
+    rows: list[dict[str, object]] = []
+    for row in raw:
+        rows.append(
+            {
+                "region": row["region"],
+                "date": row["date"],
+                "year": int(row["year"]),
+                "month": int(row["month"]),
+                "mean_ndvi": float(row["mean_ndvi"]) if row.get("mean_ndvi") not in ("", None) else math.nan,
+                "median_ndvi": float(row["median_ndvi"]) if row.get("median_ndvi") not in ("", None) else math.nan,
+                "stress_share": float(row["stress_share"]) if row.get("stress_share") not in ("", None) else math.nan,
+                "high_health_share": float(row["high_health_share"])
+                if row.get("high_health_share") not in ("", None)
+                else math.nan,
+                "valid_pixels": int(row["valid_pixels"]) if row.get("valid_pixels") not in ("", None) else 0,
+                "bbox": row.get("bbox", ""),
+            }
+        )
+    return rows
+
+
+def plot_ndvi_regional_timeseries(rows: list[dict[str, object]], output_path: Path) -> None:
+    """Single axes with all regions; arrows annotate seasonal / month-to-month trends."""
+    seen_order = list(dict.fromkeys(row["region"] for row in rows))
+    preferred = [r.name for r in DEFAULT_REGIONS]
+    regions = [name for name in preferred if name in seen_order]
+    regions.extend(n for n in seen_order if n not in regions)
+
+    all_series_dates: list[date] = []
+    all_ndvi: list[float] = []
+    series: list[tuple[str, list[date], list[float], str]] = []
+
+    for region in regions:
+        region_rows = sorted((row for row in rows if row["region"] == region), key=lambda r: str(r["date"]))
+        dates = [datetime.strptime(str(row["date"])[:10], "%Y-%m-%d").date() for row in region_rows]
+        values = [float(row["mean_ndvi"]) for row in region_rows]
+        all_series_dates.extend(dates)
+        for v in values:
+            if not math.isnan(v):
+                all_ndvi.append(v)
+        callout = REGION_TREND_CALLOUT.get(region, f"{region}: NDVI by month")
+        series.append((region, dates, values, callout))
+
+    if len(all_ndvi) > 1:
+        g_y_min, g_y_max = min(all_ndvi), max(all_ndvi)
+    elif len(all_ndvi) == 1:
+        g_y_min, g_y_max = all_ndvi[0] - 0.05, all_ndvi[0] + 0.05
+    else:
+        g_y_min, g_y_max = 0.0, 1.0
+    y_pad = 0.04 * (g_y_max - g_y_min) if g_y_max > g_y_min else 0.05
+    global_ylim = (g_y_min - y_pad, g_y_max + y_pad)
+
+    fig, ax = plt.subplots(figsize=(14, 7))
+
+    series_meta: list[tuple[str, list[date], list[float], str, int, str]] = []
+    for index, (region, dates, values, callout) in enumerate(series):
+        color = REGION_NDVI_SERIES_COLORS.get(region, f"C{index}")
+        ax.plot(
+            dates,
+            values,
+            color=color,
+            marker="o",
+            markersize=5,
+            linewidth=2.0,
+            label=region,
+            clip_on=False,
+        )
+
+        arr = np.array(values, dtype=float)
+        if not np.any(np.isfinite(arr)):
+            continue
+        end_idx = len(values) - 1
+        while end_idx >= 0 and math.isnan(float(values[end_idx])):
+            end_idx -= 1
+        if end_idx < 0:
+            continue
+        series_meta.append((region, dates, values, callout, end_idx, color))
+
+    ax.set_ylim(global_ylim)
+    _y_lo, _y_hi = global_ylim
+    ax.set_ylim(_y_lo, _y_hi + (_y_hi - _y_lo) * 0.055)
+    ax.set_ylabel("NDVI")
+    ax.set_title("Regional mean NDVI varies by month")
+    ax.grid(True, alpha=0.35, linestyle="-", linewidth=0.6)
+    ax.set_axisbelow(True)
+    ax.legend(
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.18),
+        ncol=3,
+        framealpha=0.95,
+        fontsize=9,
+    )
+
+    if all_series_dates:
+        d0, d1 = min(all_series_dates), max(all_series_dates)
+        span_days = (d1 - d0).days + 1.0
+        pad = max(12.0, min(45.0, span_days * 0.08))
+        # Extra room on the right so line-end callouts sit in whitespace, not over the grid.
+        pad_right_extra = max(52.0, min(110.0, span_days * 0.17))
+        ax.set_xlim(
+            d0 - timedelta(days=pad),
+            d1 + timedelta(days=pad + pad_right_extra),
+        )
+
+        span_months = (d1.year - d0.year) * 12 + (d1.month - d0.month) + 1
+        if span_months <= 15:
+            month_interval = 1
+        elif span_months <= 30:
+            month_interval = 2
+        else:
+            month_interval = max(1, (span_months + 11) // 12)
+
+        ax.xaxis.set_major_locator(mdates.MonthLocator(interval=month_interval))
+        single_calendar_year = d0.year == d1.year
+        if single_calendar_year:
+            ax.xaxis.set_major_formatter(mdates.DateFormatter("%b"))
+        else:
+            ax.xaxis.set_major_formatter(mdates.DateFormatter("%b %Y"))
+        ax.xaxis.set_minor_locator(
+            mdates.MonthLocator(interval=1) if month_interval > 1 else NullLocator()
+        )
+
+        if single_calendar_year:
+            x_axis_caption = (
+                f"Month in {d0.year} — each point = regional mean NDVI for that month’s MODIS composite"
+            )
+        else:
+            x_axis_caption = (
+                "Month (year on ticks when the series spans more than one calendar year) — "
+                "each point = regional mean NDVI for that month’s MODIS composite"
+            )
+    else:
+        x_axis_caption = "Month — each point = regional mean NDVI for that month’s MODIS composite"
+
+    plt.setp(ax.xaxis.get_majorticklabels(), rotation=0, ha="center")
+    ax.set_xlabel(x_axis_caption, fontsize=9.5, labelpad=11)
+
+    # Callouts anchor on each line’s last month; vertical stagger follows endpoint NDVI so mid lines
+    # (e.g. Central Valley) are not buried under neighbors that share the same calendar month.
+    # Amazon: label in upper-right axes fraction (open area) so it does not overlap other callouts.
+    n_meta = len(series_meta)
+    if n_meta:
+        end_ys = np.array(
+            [float(v[e]) for _, _, v, _, e, _ in series_meta],
+            dtype=float,
+        )
+        sort_order = np.argsort(end_ys)
+        rank = np.empty(n_meta, dtype=int)
+        rank[sort_order] = np.arange(n_meta)
+
+        stagger_by_region: dict[str, float] = {}
+        for i, (region, _dates, _values, _callout, _end_idx, _color) in enumerate(series_meta):
+            r = int(rank[i])
+            sy = (r - 0.5 * (n_meta - 1)) * 22.0
+            if region == "California Central Valley":
+                sy += 6.0
+            elif region == "Southeast US":
+                sy += 10.0
+            stagger_by_region[region] = sy
+
+        for i, (region, dates, values, callout, end_idx, color) in enumerate(series_meta):
+            wrapped = textwrap.fill(
+                callout,
+                width=26,
+                break_long_words=False,
+                break_on_hyphens=True,
+            )
+            r = int(rank[i])
+            stagger_y_pt = stagger_by_region[region]
+            x_off_pt = 54.0
+            if region == "California Central Valley":
+                x_off_pt = 68.0
+
+            z_ann = 10 + r
+            if region == "Southeast US":
+                z_ann = 24
+            elif region == "Amazon Basin":
+                z_ann = 25
+
+            if region == "Amazon Basin":
+                ax.annotate(
+                    wrapped,
+                    xy=(dates[end_idx], float(values[end_idx])),
+                    xycoords="data",
+                    xytext=(0.97, 0.94),
+                    textcoords="axes fraction",
+                    fontsize=8.5,
+                    color=color,
+                    ha="right",
+                    va="top",
+                    linespacing=1.2,
+                    zorder=z_ann,
+                    arrowprops=dict(
+                        arrowstyle="-",
+                        color=color,
+                        lw=0.9,
+                        shrinkA=3,
+                        shrinkB=5,
+                        connectionstyle="arc3,rad=0.2",
+                    ),
+                    bbox=dict(
+                        boxstyle="round,pad=0.32",
+                        facecolor="white",
+                        edgecolor=color,
+                        alpha=0.95,
+                        linewidth=0.8,
+                    ),
+                    clip_on=False,
+                )
+            else:
+                ax.annotate(
+                    wrapped,
+                    xy=(dates[end_idx], float(values[end_idx])),
+                    xycoords="data",
+                    xytext=(x_off_pt, stagger_y_pt),
+                    textcoords="offset points",
+                    fontsize=8.5,
+                    color=color,
+                    ha="left",
+                    va="center",
+                    linespacing=1.2,
+                    zorder=z_ann,
+                    arrowprops=dict(
+                        arrowstyle="-",
+                        color=color,
+                        lw=0.9,
+                        shrinkA=2,
+                        shrinkB=4,
+                        connectionstyle="arc3,rad=0.06",
+                    ),
+                    bbox=dict(
+                        boxstyle="round,pad=0.32",
+                        facecolor="white",
+                        edgecolor=color,
+                        alpha=0.95,
+                        linewidth=0.8,
+                    ),
+                    clip_on=False,
+                )
+
+    fig.tight_layout(rect=[0.04, 0.13, 0.96, 0.94])
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output_path, dpi=180, bbox_inches="tight")
+    plt.close(fig)
+
+
+def _region_name_for_boxplot_xaxis(region: str) -> str:
+    """Short multi-line x labels (no rotation) to reduce overlap."""
+    return {
+        "California Central Valley": "California\nCentral Valley",
+        "Pacific Northwest": "Pacific\nNorthwest",
+        "Great Plains": "Great\nPlains",
+        "Southeast US": "Southeast\nUS",
+        "Amazon Basin": "Amazon\nBasin",
+    }.get(region, region.replace(" ", "\n", 1))
+
+
+def plot_ndvi_distribution_by_region(rows: list[dict[str, object]], output_path: Path) -> None:
+    """Box plot of regional mean NDVI (one value per region-month in the dataset)."""
+    seen_order = list(dict.fromkeys(row["region"] for row in rows))
+    preferred = [r.name for r in DEFAULT_REGIONS]
+    regions = [name for name in preferred if name in seen_order]
+    regions.extend(n for n in seen_order if n not in regions)
+
+    data: list[list[float]] = []
+    for region in regions:
+        vals = [
+            float(row["mean_ndvi"])
+            for row in rows
+            if row["region"] == region and not math.isnan(float(row["mean_ndvi"]))
+        ]
+        data.append(vals)
+
+    if not any(len(d) > 0 for d in data):
+        return
+
+    fig, ax = plt.subplots(figsize=(10, 5.8))
+    n = len(regions)
+    positions = np.arange(1, n + 1)
+    y_all = [v for d in data for v in d]
+    y0, y1 = min(y_all), max(y_all)
+    pad = 0.04 * (y1 - y0) if y1 > y0 else 0.02
+    ylim = (y0 - pad, y1 + pad)
+
+    tick_labels = [_region_name_for_boxplot_xaxis(r) for r in regions]
+    bp = ax.boxplot(
+        data,
+        positions=positions,
+        tick_labels=tick_labels,
+        patch_artist=True,
+        widths=0.55,
+    )
+    for patch, reg in zip(bp["boxes"], regions, strict=True):
+        c = REGION_NDVI_SERIES_COLORS.get(reg, "#888888")
+        patch.set_facecolor(c)
+        patch.set_alpha(0.75)
+        patch.set_edgecolor(c)
+    for whisker in bp["whiskers"]:
+        whisker.set(color="#333333", linewidth=1.0)
+    for cap in bp["caps"]:
+        cap.set(color="#333333", linewidth=1.0)
+    for median in bp["medians"]:
+        median.set(color="#111111", linewidth=1.4)
+
+    plt.setp(ax.xaxis.get_majorticklabels(), rotation=0, ha="center")
+    ax.set_xlabel("Region", labelpad=10)
+    ax.set_ylabel("Monthly MODIS regional means")
+    ax.set_title("NDVI Distribution varies extensively across regions")
+    ax.set_ylim(ylim)
+    ax.grid(True, axis="y", alpha=0.35, linestyle="-", linewidth=0.6)
+    ax.set_axisbelow(True)
+
+    fig.tight_layout()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output_path, dpi=180, bbox_inches="tight")
+    plt.close(fig)
+
+
+def plot_stress_vs_ndvi(rows: list[dict[str, object]], output_path: Path) -> None:
+    """Scatter of regional mean NDVI vs. stress share (one point per region-month)."""
+    seen = set(row["region"] for row in rows)
+    preferred = [r.name for r in DEFAULT_REGIONS]
+    regions_order = [name for name in preferred if name in seen]
+    regions_order.extend(n for n in seen if n not in regions_order)
+
+    fig, ax = plt.subplots(figsize=(9.5, 6.2))
+
+    all_ndvi: list[float] = []
+    all_stress_pct: list[float] = []
+    for idx, region in enumerate(regions_order):
+        color = REGION_NDVI_SERIES_COLORS.get(region, f"C{idx}")
+        xs: list[float] = []
+        ys: list[float] = []
+        for row in rows:
+            if row["region"] != region:
+                continue
+            ndvi = float(row["mean_ndvi"])
+            stress_pct = float(row["stress_share"]) * 100.0
+            if math.isnan(ndvi) or math.isnan(stress_pct):
+                continue
+            xs.append(ndvi)
+            ys.append(stress_pct)
+            all_ndvi.append(ndvi)
+            all_stress_pct.append(stress_pct)
+        if xs:
+            ax.scatter(
+                xs,
+                ys,
+                c=color,
+                label=region,
+                s=56,
+                alpha=0.88,
+                edgecolors="white",
+                linewidths=0.65,
+                zorder=2,
+            )
+
+    if len(all_ndvi) >= 3:
+        ndvi_arr = np.asarray(all_ndvi, dtype=float)
+        stress_arr = np.asarray(all_stress_pct, dtype=float)
+        if np.nanstd(ndvi_arr) > 1e-9:
+            coef = np.polyfit(ndvi_arr, stress_arr, 1)
+            x_line = np.linspace(float(np.min(ndvi_arr)), float(np.max(ndvi_arr)), 80)
+            ax.plot(
+                x_line,
+                np.polyval(coef, x_line),
+                color="#333333",
+                linestyle="--",
+                linewidth=1.6,
+                alpha=0.9,
+                label="Linear trend (all region-months)",
+                zorder=1,
+            )
+
+    ax.set_xlabel("Regional mean NDVI")
+    ax.set_ylabel("Stress share (% vegetated pixels below threshold)")
+    ax.set_title("Higher vegetation stress is correlated with lower regional NDVI")
+    ax.grid(True, alpha=0.35, linestyle="-", linewidth=0.6)
+    ax.set_axisbelow(True)
+    ax.legend(loc="best", fontsize=8.5, framealpha=0.95)
+
+    fig.tight_layout()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output_path, dpi=180, bbox_inches="tight")
+    plt.close(fig)
+
+
 def plot_heatmap(rows: list[dict[str, object]], output_path: Path) -> None:
     regions = list(dict.fromkeys(row["region"] for row in rows))
     dates = list(dict.fromkeys(row["date"] for row in rows))
@@ -309,27 +721,58 @@ def parse_args() -> argparse.Namespace:
         default="figures/modis_ndvi_stress_health_lines.png",
         help="Output line chart PNG path.",
     )
+    parser.add_argument(
+        "--ndvi-series",
+        default="figures/modis_ndvi_regional_series.png",
+        help="Output stacked regional mean NDVI time series PNG path.",
+    )
+    parser.add_argument(
+        "--ndvi-distribution",
+        default="figures/modis_ndvi_distribution_by_region.png",
+        help="Output boxplot NDVI-by-region EDA PNG path.",
+    )
+    parser.add_argument(
+        "--stress-vs-ndvi",
+        default="figures/modis_ndvi_stress_vs_ndvi.png",
+        help="Output scatter stress vs NDVI PNG path.",
+    )
+    parser.add_argument(
+        "--from-csv",
+        action="store_true",
+        help="Load rows from --csv instead of downloading from GIBS (writes figures only).",
+    )
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
-    months = month_starts(args.start, args.end)
-    rows = build_rows(
-        DEFAULT_REGIONS,
-        months,
-        args.width,
-        args.height,
-        args.sample_stride,
-        args.stress_threshold,
-        args.high_threshold,
-    )
-    write_csv(rows, Path(args.csv))
-    write_json(rows, Path(args.json))
+    csv_path = Path(args.csv)
+    if args.from_csv:
+        rows = load_csv_rows(csv_path)
+    else:
+        months = month_starts(args.start, args.end)
+        rows = build_rows(
+            DEFAULT_REGIONS,
+            months,
+            args.width,
+            args.height,
+            args.sample_stride,
+            args.stress_threshold,
+            args.high_threshold,
+        )
+        write_csv(rows, csv_path)
+        write_json(rows, Path(args.json))
     plot_heatmap(rows, Path(args.heatmap))
     plot_lines(rows, Path(args.lines))
-    print(f"Wrote {len(rows)} rows to {args.csv} and {args.json}")
-    print(f"Wrote figures to {args.heatmap} and {args.lines}")
+    plot_ndvi_regional_timeseries(rows, Path(args.ndvi_series))
+    plot_ndvi_distribution_by_region(rows, Path(args.ndvi_distribution))
+    plot_stress_vs_ndvi(rows, Path(args.stress_vs_ndvi))
+    if not args.from_csv:
+        print(f"Wrote {len(rows)} rows to {args.csv} and {args.json}")
+    print(
+        f"Wrote figures to {args.heatmap}, {args.lines}, {args.ndvi_series}, "
+        f"{args.ndvi_distribution}, and {args.stress_vs_ndvi}"
+    )
 
 
 if __name__ == "__main__":
