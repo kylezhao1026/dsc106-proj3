@@ -19,6 +19,8 @@ python3 scripts/modis_ndvi_stress_health.py
 - `data/modis_ndvi_region_month.json`: same data in JSON form for browser loading.
 - `figures/modis_ndvi_stress_health_heatmap.png`: static exploratory heatmap of mean NDVI.
 - `figures/modis_ndvi_stress_health_lines.png`: static exploratory line chart of stress and high-health share.
+- `figures/`: other Matplotlib PNGs from the script (`index.html` loads images from here).
+- **`index.html`**: documentation page for all visualizations (GitHub Pages: branch **main**, folder **`/`**—not `/docs`).
 
 ## Interpretation
 
