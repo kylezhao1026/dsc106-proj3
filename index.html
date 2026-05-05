@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NDVI patterns — vegetation stress &amp; health</title>
+  <style>
+    :root {
+      --bg: #fafafa;
+      --text: #1a1a1a;
+      --muted: #444;
+      --border: #e5e7eb;
+      --card: #fff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      font-size: 1rem;
+      line-height: 1.55;
+      color: var(--text);
+      background: var(--bg);
+    }
+    header {
+      background: linear-gradient(145deg, #022c22 0%, #064e3b 45%, #047857 100%);
+      color: #ecfdf5;
+      padding: 2.5rem 1.25rem 2rem;
+    }
+    header h1 {
+      margin: 0 0 0.75rem;
+      font-size: 1.65rem;
+      font-weight: 650;
+      letter-spacing: -0.02em;
+      max-width: 52rem;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .lead {
+      margin: 0 auto;
+      max-width: 52rem;
+      font-size: 1.08rem;
+      opacity: 0.95;
+      border-left: 4px solid #6ee7b7;
+      padding-left: 1rem;
+    }
+    main {
+      max-width: 52rem;
+      margin: 0 auto;
+      padding: 2rem 1.25rem 3rem;
+    }
+    section {
+      margin-bottom: 3rem;
+    }
+    section h2 {
+      font-size: 1.25rem;
+      margin: 0 0 0.5rem;
+      padding-bottom: 0.35rem;
+      border-bottom: 2px solid var(--border);
+    }
+    section p, section li { color: var(--muted); }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem 1.1rem 1.15rem;
+      margin-top: 0.75rem;
+      overflow: hidden;
+    }
+    figure { margin: 0; }
+    figure img {
+      display: block;
+      width: 100%;
+      height: auto;
+      border-radius: 6px;
+    }
+    figcaption {
+      margin-top: 0.85rem;
+      font-size: 0.93rem;
+      color: var(--muted);
+    }
+    figcaption strong { color: var(--text); }
+    .methods {
+      background: #f1f5f9;
+      border-radius: 8px;
+      padding: 1rem 1.15rem;
+      font-size: 0.95rem;
+    }
+    .methods ul { margin: 0.5rem 0 0; padding-left: 1.2rem; }
+    footer {
+      text-align: center;
+      padding: 2rem 1rem;
+      font-size: 0.88rem;
+      color: #64748b;
+      border-top: 1px solid var(--border);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Vegetation stress &amp; health from NDVI patterns</h1>
+    <p class="lead">
+      <strong>Question:</strong>
+      Where and when does vegetation show signs of stress or high health based on NDVI patterns?
+    </p>
+  </header>
+
+  <main>
+    <section id="methods">
+      <h2>Data &amp; methods</h2>
+      <div class="methods">
+        <p>
+          Monthly composites use <strong>MODIS Terra L3 NDVI Monthly</strong> from NASA
+          <strong>GIBS WMS</strong>. Pixels are decoded with the official GIBS NDVI colormap to produce
+          approximate regional means (exploratory / visualization-scale, not raw science retrieval).
+        </p>
+        <ul>
+          <li><strong>Regions:</strong> California Central Valley, Pacific Northwest, Great Plains, Southeast US, Amazon Basin.</li>
+          <li><strong>Stress share:</strong> share of vegetated pixels with NDVI below <strong>0.30</strong>.</li>
+          <li><strong>High-health share:</strong> share with NDVI at or above <strong>0.60</strong>.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="series">
+      <h2>Regional mean NDVI over time</h2>
+      <p>
+        Where and when NDVI is higher or lower within each region: all regions on one axis so you can
+        compare seasonal timing and amplitude.
+      </p>
+      <div class="card">
+        <figure>
+          <img
+            src="figures/modis_ndvi_regional_series.png"
+            alt="Multi-line chart of regional mean NDVI by month for five regions"
+            width="1400"
+            height="800"
+            loading="lazy"
+          />
+          <figcaption>
+            <strong>Regional mean NDVI varies by month.</strong>
+            Each point is one month’s regional mean from the MODIS composite; colors distinguish regions.
+          </figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section id="distribution">
+      <h2>NDVI distribution by region</h2>
+      <p>
+        How spread out monthly NDVI is within each region—useful for comparing variability and typical ranges.
+      </p>
+      <div class="card">
+        <figure>
+          <img
+            src="figures/modis_ndvi_distribution_by_region.png"
+            alt="Box plots of monthly regional mean NDVI for five regions"
+            width="1200"
+            height="700"
+            loading="lazy"
+          />
+          <figcaption>
+            <strong>NDVI distribution varies extensively across regions.</strong>
+            Y-axis: monthly MODIS regional means; X-axis: region (multi-line labels).
+          </figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section id="stress-ndvi">
+      <h2>Stress vs. regional NDVI</h2>
+      <p>
+        Each point is one region-month. Lower mean NDVI tends to align with more pixels flagged as stressed,
+        linking the “where / when” question to stress diagnostics.
+      </p>
+      <div class="card">
+        <figure>
+          <img
+            src="figures/modis_ndvi_stress_vs_ndvi.png"
+            alt="Scatter plot of stress share versus regional mean NDVI colored by region"
+            width="1200"
+            height="780"
+            loading="lazy"
+          />
+          <figcaption>
+            <strong>Higher vegetation stress is correlated with lower regional NDVI.</strong>
+            Stress share is the percentage of vegetated pixels below the stress threshold.
+          </figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section id="heatmap">
+      <h2>Mean NDVI heatmap (where &amp; when)</h2>
+      <p>
+        Region × month grid: quick read of which areas look greener or browner in which months.
+      </p>
+      <div class="card">
+        <figure>
+          <img
+            src="figures/modis_ndvi_stress_health_heatmap.png"
+            alt="Heatmap of mean NDVI by region row and month column"
+            width="1400"
+            height="700"
+            loading="lazy"
+          />
+          <figcaption>
+            <strong>MODIS Terra monthly NDVI heatmap.</strong>
+            Color shows approximate mean NDVI from the GIBS colormap.
+          </figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section id="shares">
+      <h2>Stress and high-health shares over time</h2>
+      <p>
+        When stressed pixels dominate versus when high-health pixels dominate—directly tied to the project’s
+        stress vs. high-health framing.
+      </p>
+      <div class="card">
+        <figure>
+          <img
+            src="figures/modis_ndvi_stress_health_lines.png"
+            alt="Line charts of stress share and high health share over months by region"
+            width="1200"
+            height="760"
+            loading="lazy"
+          />
+          <figcaption>
+            <strong>Share of vegetated pixels showing stress or high health.</strong>
+            Top: stress share (%); bottom: high-health share (%).
+          </figcaption>
+        </figure>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
