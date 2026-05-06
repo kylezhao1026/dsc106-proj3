@@ -64,7 +64,7 @@ REGION_NDVI_SERIES_COLORS: dict[str, str] = {
     "Pacific Northwest": "#0d9488",
     "Great Plains": "#d97706",
     "Southeast US": "#7c3aed",
-    "Amazon Basin": "#16a34a",
+    "Amazon Basin": "#2a9483",
 }
 
 # Short labels for trend callouts on the combined regional NDVI figure.
@@ -627,7 +627,8 @@ def plot_heatmap(rows: list[dict[str, object]], output_path: Path) -> None:
         matrix[index_region[row["region"]], index_date[row["date"]]] = row["mean_ndvi"]
 
     fig, ax = plt.subplots(figsize=(max(10, len(dates) * 0.42), 5.5))
-    image = ax.imshow(matrix, aspect="auto", cmap="RdYlGn", vmin=0.15, vmax=0.85)
+    # viridis: color-blind–safe sequential scale (avoid RdYlGn red–green)
+    image = ax.imshow(matrix, aspect="auto", cmap="viridis", vmin=0.15, vmax=0.85)
     ax.set_title("MODIS Terra Monthly NDVI: Vegetation Stress vs. High Health")
     ax.set_xlabel("Month")
     ax.set_ylabel("Region")

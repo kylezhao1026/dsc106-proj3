@@ -22,7 +22,7 @@
       background: var(--bg);
     }
     header {
-      background: linear-gradient(145deg, #022c22 0%, #064e3b 45%, #047857 100%);
+      background: linear-gradient(145deg, #1a2e2a 0%, #0f4a42 45%, #147a6c 100%);
       color: #ecfdf5;
       padding: 2.5rem 1.25rem 2rem;
     }
@@ -40,7 +40,7 @@
       max-width: 52rem;
       font-size: 1.08rem;
       opacity: 0.95;
-      border-left: 4px solid #6ee7b7;
+      border-left: 4px solid #5eead4;
       padding-left: 1rem;
     }
     main {
@@ -124,7 +124,7 @@
     .viz-embed iframe {
       display: block;
       width: 100%;
-      min-height: 1200px;
+      min-height: 820px;
       border: 0;
     }
   </style>
@@ -269,11 +269,10 @@
     </section>
 
     <section id="interactive">
-      <h2>Interactive exploration (D3 + NASA GIBS)</h2>
+      <h2>Interactive exploration progress </h2>
       <p>
-        Scrub through months with the slider, switch regions, and compare NASA GIBS NDVI imagery with the same
-        stress and NDVI metrics used above (from <code>data/modis_ndvi_region_month.json</code>).
-        Requires serving the site over HTTP so the data file can load—same as GitHub Pages.
+        Pick a region and month to see MODIS NDVI from NASA GIBS alongside the same regional mean NDVI, stress
+        share, and high-health share!
       </p>
       <div class="viz-embed">
         <iframe

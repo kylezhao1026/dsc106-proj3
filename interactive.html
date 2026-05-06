@@ -10,12 +10,15 @@
       --bg: #f8fafc;
       --text: #0f172a;
       --muted: #475569;
-      --green: #047857;
-      --green-bg: #ecfdf5;
+      /* Lighter vermillion + bluish-teal (CB-safe vs pure red/green); NDVI = medium blue */
+      --green: #147a6c;
+      --green-bg: #eef6f4;
       --border: #e2e8f0;
-      --stress: #b91c1c;
-      --mid: #94a3b8;
-      --healthy: #15803d;
+      --stress: #c75a2a;
+      --mid: #8e9faf;
+      --healthy: #2a9483;
+      --ndvi-line: #2a75ad;
+      --viz-sep: #cbd5e1;
     }
     * { box-sizing: border-box; }
     body {
@@ -26,7 +29,7 @@
       line-height: 1.5;
     }
     header {
-      background: linear-gradient(145deg, #022c22 0%, #064e3b 45%, #047857 100%);
+      background: linear-gradient(145deg, #1a2e2a 0%, #0f4a42 45%, #147a6c 100%);
       color: #ecfdf5;
       padding: 1.5rem 1.25rem 1.25rem;
     }
@@ -115,17 +118,21 @@
     }
     .stat {
       background: var(--green-bg);
-      border: 1px solid #a7f3d0;
+      border: 1px solid #b8d9d2;
       border-radius: 8px;
       padding: 0.5rem 0.65rem;
     }
-    .stat .k { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--green); }
+    .stat .k { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--healthy); }
     .stat .v { font-size: 1.15rem; font-weight: 700; color: var(--text); }
     svg { display: block; width: 100%; height: auto; }
     .axis text { font-size: 11px; fill: var(--muted); }
     .axis path, .axis line { stroke: var(--border); }
-    .legend { font-size: 11px; fill: var(--muted); margin-top: 0.35rem; }
-    .err { color: #b91c1c; font-size: 0.9rem; }
+    .share-heading {
+      margin: 0 0 0.2rem;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+    .err { color: #a84820; font-size: 0.9rem; }
     footer { padding: 1rem 1.25rem 2rem; font-size: 0.8rem; color: var(--muted); text-align: center; }
     body.embed header,
     body.embed footer { display: none; }
@@ -181,15 +188,10 @@
         <p class="caption">Image updates when you move the time slider or change region.</p>
       </div>
       <div class="panel">
-        <h2>Stress assessment (this month)</h2>
+        <h2 id="stress-panel-title">Stress Assessment</h2>
         <div class="stats" id="stats"></div>
-        <p style="margin:0 0 0.35rem; font-size:0.85rem; color:var(--muted);">Pixel shares (visible land)</p>
+        <p class="share-heading">Vegetation Health Share</p>
         <svg id="share-bar" viewBox="0 0 400 56" preserveAspectRatio="xMidYMid meet"></svg>
-        <p class="legend">Red = stress · Gray = moderate · Green = high health</p>
-      </div>
-      <div class="panel" style="grid-column: 1 / -1;">
-        <h2>Full year — selected region (D3)</h2>
-        <svg id="series-chart" viewBox="0 0 640 220" preserveAspectRatio="xMidYMid meet"></svg>
       </div>
     </div>
   </div>
@@ -212,6 +214,17 @@
   const LAYER = "MODIS_Terra_L3_NDVI_Monthly";
   const DATA_URL = "data/modis_ndvi_region_month.json";
   const MAP_WIDTH = 512;
+
+  const _rs = getComputedStyle(document.documentElement);
+  const VIZ = {
+    stress: _rs.getPropertyValue("--stress").trim() || "#c75a2a",
+    moderate: _rs.getPropertyValue("--mid").trim() || "#8e9faf",
+    healthy: _rs.getPropertyValue("--healthy").trim() || "#2a9483",
+    ndvi: _rs.getPropertyValue("--ndvi-line").trim() || "#2a75ad",
+    sep: _rs.getPropertyValue("--viz-sep").trim() || "#cbd5e1",
+    muted: _rs.getPropertyValue("--muted").trim() || "#475569",
+    text: _rs.getPropertyValue("--text").trim() || "#0f172a",
+  };
 
   const fmtPct = d3.format(".1f");
   const fmtNdvi = d3.format(".3f");
@@ -260,11 +273,10 @@
     if (!selection) return;
 
     const rows = [
-      { k: "Mean NDVI", v: fmtNdvi(selection.mean_ndvi) },
-      { k: "Median NDVI", v: fmtNdvi(selection.median_ndvi) },
-      { k: "Stress share", v: fmtPct(selection.stress_share * 100) + "%" },
-      { k: "High health", v: fmtPct(selection.high_health_share * 100) + "%" },
-      { k: "Valid pixels", v: d3.format(",")(selection.valid_pixels) },
+      { k: "Mean NDVI", v: fmtNdvi(selection.mean_ndvi), accent: VIZ.ndvi },
+      { k: "Median NDVI", v: fmtNdvi(selection.median_ndvi), accent: VIZ.ndvi },
+      { k: "Stress share", v: fmtPct(selection.stress_share * 100) + "%", accent: VIZ.stress },
+      { k: "High health", v: fmtPct(selection.high_health_share * 100) + "%", accent: VIZ.healthy },
     ];
 
     root
@@ -272,7 +284,15 @@
       .data(rows)
       .join("div")
       .attr("class", "stat")
-      .html((d) => `<div class="k">${d.k}</div><div class="v">${d.v}</div>`);
+      .each(function (d) {
+        const box = d3.select(this);
+        box.append("div").attr("class", "k").text(d.k);
+        box
+          .append("div")
+          .attr("class", "v")
+          .style("color", d.accent || null)
+          .text(d.v);
+      });
   }
 
   function renderShareBar(selection) {
@@ -282,17 +302,19 @@
 
     const w = 400;
     const h = 40;
+    const barPadTop = 8;
+    const barRectH = h - 8;
     const stress = selection.stress_share;
     const high = selection.high_health_share;
     const mid = moderateShare(selection);
     const x = d3.scaleLinear().domain([0, 1]).range([0, w]);
 
-    const g = svg.append("g").attr("transform", "translate(0,8)");
+    const g = svg.append("g").attr("transform", `translate(0,${barPadTop})`);
 
     const segs = [
-      { key: "stress", len: stress, fill: "#b91c1c" },
-      { key: "mid", len: mid, fill: "#94a3b8" },
-      { key: "high", len: high, fill: "#15803d" },
+      { key: "stress", len: stress, fill: VIZ.stress },
+      { key: "mid", len: mid, fill: VIZ.moderate },
+      { key: "high", len: high, fill: VIZ.healthy },
     ];
 
     let acc = 0;
@@ -306,7 +328,7 @@
       })
       .attr("y", 0)
       .attr("width", (d) => Math.max(0, x(d.len) - x(0)))
-      .attr("height", h - 8)
+      .attr("height", barRectH)
       .attr("rx", 4)
       .attr("fill", (d) => d.fill);
 
@@ -314,133 +336,24 @@
       .attr("x", 0)
       .attr("y", 0)
       .attr("width", w)
-      .attr("height", h - 8)
+      .attr("height", barRectH)
       .attr("rx", 4)
       .attr("fill", "none")
       .attr("stroke", "#cbd5e1");
 
-    const labels = g
-      .append("g")
-      .attr("transform", `translate(0,${h})`);
-    labels
+    const labelY = barRectH + 3;
+    const labels = g.append("g").attr("transform", `translate(0,${labelY})`);
+    const capLine = labels
       .append("text")
       .attr("x", 0)
-      .attr("fill", "#64748b")
-      .attr("font-size", 11)
-      .text(`Stress ${fmtPct(stress * 100)}% · Moderate ${fmtPct(mid * 100)}% · High health ${fmtPct(high * 100)}%`);
-  }
-
-  function renderSeriesChart(regionRows, currentDateStr) {
-    const svg = d3.select("#series-chart");
-    svg.selectAll("*").remove();
-
-    const margin = { top: 12, right: 16, bottom: 36, left: 44 };
-    const W = 640;
-    const H = 220;
-    const iw = W - margin.left - margin.right;
-    const ih = H - margin.top - margin.bottom;
-
-    const parse = (d) => new Date(d.date);
-    const data = regionRows.slice().sort((a, b) => parse(a) - parse(b));
-
-    const x = d3
-      .scaleTime()
-      .domain(d3.extent(data, parse))
-      .range([0, iw]);
-
-    const y = d3
-      .scaleLinear()
-      .domain([0, 1])
-      .nice()
-      .range([ih, 0]);
-
-    const lineStress = d3
-      .line()
-      .x((d) => x(parse(d)))
-      .y((d) => y(d.stress_share));
-
-    const lineNdvi = d3
-      .line()
-      .x((d) => x(parse(d)))
-      .y((d) => y(d.mean_ndvi));
-
-    const g = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
-
-    g.append("g")
-      .attr("transform", `translate(0,${ih})`)
-      .call(d3.axisBottom(x).ticks(6))
-      .attr("class", "axis");
-
-    g.append("g")
-      .call(d3.axisLeft(y).ticks(5).tickFormat(d3.format(".2f")))
-      .attr("class", "axis");
-
-    g.append("path")
-      .datum(data)
-      .attr("fill", "none")
-      .attr("stroke", "#b91c1c")
-      .attr("stroke-width", 2)
-      .attr("d", lineStress);
-
-    g.append("path")
-      .datum(data)
-      .attr("fill", "none")
-      .attr("stroke", "#047857")
-      .attr("stroke-width", 2)
-      .attr("stroke-dasharray", "6 4")
-      .attr("d", lineNdvi);
-
-    const cur = data.find((d) => d.date === currentDateStr);
-    if (cur) {
-      const cx = x(parse(cur));
-      g.append("line")
-        .attr("x1", cx)
-        .attr("x2", cx)
-        .attr("y1", 0)
-        .attr("y2", ih)
-        .attr("stroke", "#0f172a")
-        .attr("stroke-width", 1)
-        .attr("stroke-dasharray", "4 3")
-        .attr("opacity", 0.6);
-
-      g.append("circle")
-        .attr("cx", cx)
-        .attr("cy", y(cur.stress_share))
-        .attr("r", 5)
-        .attr("fill", "#b91c1c")
-        .attr("stroke", "#fff")
-        .attr("stroke-width", 1.5);
-
-      g.append("circle")
-        .attr("cx", cx)
-        .attr("cy", y(cur.mean_ndvi))
-        .attr("r", 5)
-        .attr("fill", "#047857")
-        .attr("stroke", "#fff")
-        .attr("stroke-width", 1.5);
-    }
-
-    const leg = svg.append("g").attr("transform", `translate(${margin.left},${H - 6})`);
-    leg
-      .append("text")
-      .attr("x", 0)
-      .attr("fill", "#b91c1c")
-      .attr("font-size", 11)
-      .attr("font-weight", 600)
-      .text("Stress share");
-    leg
-      .append("text")
-      .attr("x", 88)
-      .attr("fill", "#047857")
-      .attr("font-size", 11)
-      .attr("font-weight", 600)
-      .text("Mean NDVI (right axis scale 0–1)");
-    leg
-      .append("text")
-      .attr("x", 260)
-      .attr("fill", "#64748b")
-      .attr("font-size", 10)
-      .text("(0–1 scale: stress = fraction of pixels; mean NDVI = colormap decode)");
+      .attr("y", 0)
+      .attr("dominant-baseline", "hanging")
+      .attr("font-size", 11);
+    capLine.append("tspan").attr("fill", VIZ.stress).attr("font-weight", 650).text(`Stress ${fmtPct(stress * 100)}%`);
+    capLine.append("tspan").attr("fill", VIZ.sep).attr("font-weight", 400).text(" · ");
+    capLine.append("tspan").attr("fill", VIZ.moderate).attr("font-weight", 600).text(`Moderate ${fmtPct(mid * 100)}%`);
+    capLine.append("tspan").attr("fill", VIZ.sep).attr("font-weight", 400).text(" · ");
+    capLine.append("tspan").attr("fill", VIZ.healthy).attr("font-weight", 650).text(`High health ${fmtPct(high * 100)}%`);
   }
 
   function updateMap(url) {
@@ -469,8 +382,7 @@
       document.getElementById("controls").hidden = false;
       document.getElementById("main-grid").hidden = false;
 
-      const byRegion = d3.group(raw, (d) => d.region);
-      const regions = Array.from(byRegion.keys()).sort();
+      const regions = Array.from(new Set(raw.map((d) => d.region))).sort();
 
       const dates = Array.from(new Set(raw.map((d) => d.date))).sort();
 
@@ -495,9 +407,16 @@
 
       function refresh() {
         const { row, dateStr } = currentSlice();
+        const tDate = row ? new Date(row.date) : dateStr ? new Date(dateStr) : null;
+        const monthPhrase = tDate ? d3.timeFormat("%B %Y")(tDate) : "";
+
         document.getElementById("time-label").textContent = row
           ? d3.timeFormat("%B %Y")(new Date(row.date))
           : dateStr;
+
+        document.getElementById("stress-panel-title").textContent = monthPhrase
+          ? `Stress Assessment for ${monthPhrase}`
+          : "Stress Assessment";
 
         if (!row) return;
 
@@ -508,9 +427,6 @@
 
         renderStats(row);
         renderShareBar(row);
-
-        const regionRows = byRegion.get(row.region) || [];
-        renderSeriesChart(regionRows, dateStr);
       }
 
       regionSelect.on("change", refresh);
