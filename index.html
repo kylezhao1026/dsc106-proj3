@@ -93,6 +93,40 @@
       color: #64748b;
       border-top: 1px solid var(--border);
     }
+    /* Full-bleed interactive block (wider than main column) */
+    #interactive {
+      width: 100vw;
+      margin-left: calc(50% - 50vw);
+      padding-left: max(1.25rem, env(safe-area-inset-left));
+      padding-right: max(1.25rem, env(safe-area-inset-right));
+      box-sizing: border-box;
+    }
+    #interactive > h2,
+    #interactive > p {
+      max-width: 52rem;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    #interactive > h2 {
+      padding-left: 0;
+      padding-right: 0;
+    }
+    .viz-embed {
+      margin-top: 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      background: #fff;
+      max-width: min(96vw, 88rem);
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .viz-embed iframe {
+      display: block;
+      width: 100%;
+      min-height: 1200px;
+      border: 0;
+    }
   </style>
 </head>
 <body>
@@ -231,6 +265,22 @@
             Top: stress share (%); bottom: high-health share (%).
           </figcaption>
         </figure>
+      </div>
+    </section>
+
+    <section id="interactive">
+      <h2>Interactive exploration (D3 + NASA GIBS)</h2>
+      <p>
+        Scrub through months with the slider, switch regions, and compare NASA GIBS NDVI imagery with the same
+        stress and NDVI metrics used above (from <code>data/modis_ndvi_region_month.json</code>).
+        Requires serving the site over HTTP so the data file can load—same as GitHub Pages.
+      </p>
+      <div class="viz-embed">
+        <iframe
+          title="Interactive MODIS NDVI map and stress visualization"
+          src="interactive.html?embed=1"
+          loading="lazy"
+        ></iframe>
       </div>
     </section>
   </main>

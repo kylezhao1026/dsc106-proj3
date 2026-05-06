@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MODIS NDVI — interactive (D3 + GIBS)</title>
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --text: #0f172a;
+      --muted: #475569;
+      --green: #047857;
+      --green-bg: #ecfdf5;
+      --border: #e2e8f0;
+      --stress: #b91c1c;
+      --mid: #94a3b8;
+      --healthy: #15803d;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      color: var(--text);
+      background: var(--bg);
+      line-height: 1.5;
+    }
+    header {
+      background: linear-gradient(145deg, #022c22 0%, #064e3b 45%, #047857 100%);
+      color: #ecfdf5;
+      padding: 1.5rem 1.25rem 1.25rem;
+    }
+    header h1 { margin: 0 0 0.35rem; font-size: 1.35rem; font-weight: 650; }
+    header p { margin: 0; font-size: 0.95rem; opacity: 0.95; max-width: 48rem; }
+    .wrap { max-width: 56rem; margin: 0 auto; padding: 1.25rem; }
+    .note {
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-bottom: 1rem;
+      padding: 0.65rem 0.75rem;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem 1.5rem;
+      align-items: center;
+      margin-bottom: 1rem;
+      padding: 1rem;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+    }
+    .controls label { font-weight: 600; font-size: 0.9rem; }
+    .controls select {
+      margin-left: 0.35rem;
+      padding: 0.35rem 0.5rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      min-width: 14rem;
+    }
+    .slider-block {
+      flex: 1 1 18rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+    .slider-block input[type="range"] { width: 100%; }
+    .slider-meta { font-size: 0.88rem; color: var(--muted); }
+    .grid {
+      display: grid;
+      gap: 1.25rem;
+      grid-template-columns: 1fr;
+    }
+    @media (min-width: 900px) {
+      .grid { grid-template-columns: 1fr 1fr; align-items: start; }
+    }
+    .panel {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem;
+      overflow: hidden;
+    }
+    .panel h2 { margin: 0 0 0.75rem; font-size: 1.05rem; }
+    .map-wrap {
+      position: relative;
+      background: #0f172a;
+      border-radius: 8px;
+      min-height: 200px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .map-wrap img {
+      display: block;
+      max-width: 100%;
+      height: auto;
+      border-radius: 6px;
+    }
+    .map-wrap .loading {
+      position: absolute;
+      color: #94a3b8;
+      font-size: 0.9rem;
+    }
+    .map-wrap img.loaded + .loading { display: none; }
+    .caption { font-size: 0.8rem; color: var(--muted); margin: 0.5rem 0 0; }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+      gap: 0.65rem;
+      margin-bottom: 1rem;
+    }
+    .stat {
+      background: var(--green-bg);
+      border: 1px solid #a7f3d0;
+      border-radius: 8px;
+      padding: 0.5rem 0.65rem;
+    }
+    .stat .k { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--green); }
+    .stat .v { font-size: 1.15rem; font-weight: 700; color: var(--text); }
+    svg { display: block; width: 100%; height: auto; }
+    .axis text { font-size: 11px; fill: var(--muted); }
+    .axis path, .axis line { stroke: var(--border); }
+    .legend { font-size: 11px; fill: var(--muted); margin-top: 0.35rem; }
+    .err { color: #b91c1c; font-size: 0.9rem; }
+    footer { padding: 1rem 1.25rem 2rem; font-size: 0.8rem; color: var(--muted); text-align: center; }
+    body.embed header,
+    body.embed footer { display: none; }
+    body.embed .wrap {
+      padding-top: 0.75rem;
+      padding-bottom: 1rem;
+      max-width: min(96vw, 88rem);
+    }
+  </style>
+</head>
+<body>
+  <script>
+    if (new URLSearchParams(location.search).get("embed") === "1") {
+      document.body.classList.add("embed");
+    }
+  </script>
+  <header>
+    <h1>Interactive MODIS NDVI &amp; vegetation stress</h1>
+    <p>
+      Data from <code>data/modis_ndvi_region_month.json</code> (all regions &amp; months).
+      Map tiles: NASA GIBS WMS <code>MODIS_Terra_L3_NDVI_Monthly</code>.
+      Stress = share of pixels with NDVI &lt; 0.30 (decoded colormap); high health = NDVI ≥ 0.60.
+    </p>
+  </header>
+
+  <div class="wrap">
+    <p class="note" id="fetch-note">
+      Open this page via a local server (browsers block <code>fetch</code> from <code>file://</code>):
+      <code>python3 -m http.server 8080</code> then visit
+      <code>http://localhost:8080/interactive.html</code>
+    </p>
+    <p class="err" id="error" hidden></p>
+
+    <div class="controls" id="controls" hidden>
+      <label>
+        Region
+        <select id="region-select"></select>
+      </label>
+      <div class="slider-block">
+        <label for="time-slider">Time (month)</label>
+        <input type="range" id="time-slider" min="0" value="0" step="1" />
+        <div class="slider-meta"><span id="time-label"></span></div>
+      </div>
+    </div>
+
+    <div class="grid" id="main-grid" hidden>
+      <div class="panel">
+        <h2>NDVI map (GIBS API)</h2>
+        <div class="map-wrap">
+          <img id="wms-img" alt="MODIS NDVI monthly composite" width="512" height="512" />
+          <span class="loading" id="map-loading">Loading map…</span>
+        </div>
+        <p class="caption">Image updates when you move the time slider or change region.</p>
+      </div>
+      <div class="panel">
+        <h2>Stress assessment (this month)</h2>
+        <div class="stats" id="stats"></div>
+        <p style="margin:0 0 0.35rem; font-size:0.85rem; color:var(--muted);">Pixel shares (visible land)</p>
+        <svg id="share-bar" viewBox="0 0 400 56" preserveAspectRatio="xMidYMid meet"></svg>
+        <p class="legend">Red = stress · Gray = moderate · Green = high health</p>
+      </div>
+      <div class="panel" style="grid-column: 1 / -1;">
+        <h2>Full year — selected region (D3)</h2>
+        <svg id="series-chart" viewBox="0 0 640 220" preserveAspectRatio="xMidYMid meet"></svg>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    WMS endpoint: gibs.earthdata.nasa.gov · Same thresholds as <code>scripts/modis_ndvi_stress_health.py</code>
+  </footer>
+
+  <script>
+(function () {
+  if (document.body.classList.contains("embed")) {
+    const n = document.getElementById("fetch-note");
+    if (n) {
+      n.innerHTML =
+        "Serve the repo over HTTP (e.g. <code>python3 -m http.server 8080</code>) or GitHub Pages so the JSON loads inside this embedded view.";
+    }
+  }
+
+  const WMS_BASE = "https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi";
+  const LAYER = "MODIS_Terra_L3_NDVI_Monthly";
+  const DATA_URL = "data/modis_ndvi_region_month.json";
+  const MAP_WIDTH = 512;
+
+  const fmtPct = d3.format(".1f");
+  const fmtNdvi = d3.format(".3f");
+
+  function buildWmsUrl(bboxStr, timeIso, width, height) {
+    const parts = bboxStr.split(",").map(Number);
+    const [lonMin, latMin, lonMax, latMax] = parts;
+    const params = new URLSearchParams({
+      SERVICE: "WMS",
+      VERSION: "1.1.1",
+      REQUEST: "GetMap",
+      LAYERS: LAYER,
+      STYLES: "",
+      FORMAT: "image/png",
+      TRANSPARENT: "true",
+      SRS: "EPSG:4326",
+      BBOX: `${lonMin},${latMin},${lonMax},${latMax}`,
+      WIDTH: String(width),
+      HEIGHT: String(height),
+      TIME: timeIso,
+    });
+    return `${WMS_BASE}?${params.toString()}`;
+  }
+
+  function mapHeightForBbox(bboxStr, width) {
+    const [lonMin, latMin, lonMax, latMax] = bboxStr.split(",").map(Number);
+    const lonSpan = Math.max(1e-6, lonMax - lonMin);
+    const latSpan = Math.max(1e-6, latMax - latMin);
+    return Math.max(120, Math.round((width * latSpan) / lonSpan));
+  }
+
+  function moderateShare(d) {
+    const s = d.stress_share + d.high_health_share;
+    return Math.max(0, Math.min(1, 1 - s));
+  }
+
+  function showError(msg) {
+    const el = document.getElementById("error");
+    el.textContent = msg;
+    el.hidden = false;
+  }
+
+  function renderStats(selection) {
+    const root = d3.select("#stats");
+    root.selectAll("*").remove();
+    if (!selection) return;
+
+    const rows = [
+      { k: "Mean NDVI", v: fmtNdvi(selection.mean_ndvi) },
+      { k: "Median NDVI", v: fmtNdvi(selection.median_ndvi) },
+      { k: "Stress share", v: fmtPct(selection.stress_share * 100) + "%" },
+      { k: "High health", v: fmtPct(selection.high_health_share * 100) + "%" },
+      { k: "Valid pixels", v: d3.format(",")(selection.valid_pixels) },
+    ];
+
+    root
+      .selectAll("div.stat")
+      .data(rows)
+      .join("div")
+      .attr("class", "stat")
+      .html((d) => `<div class="k">${d.k}</div><div class="v">${d.v}</div>`);
+  }
+
+  function renderShareBar(selection) {
+    const svg = d3.select("#share-bar");
+    svg.selectAll("*").remove();
+    if (!selection) return;
+
+    const w = 400;
+    const h = 40;
+    const stress = selection.stress_share;
+    const high = selection.high_health_share;
+    const mid = moderateShare(selection);
+    const x = d3.scaleLinear().domain([0, 1]).range([0, w]);
+
+    const g = svg.append("g").attr("transform", "translate(0,8)");
+
+    const segs = [
+      { key: "stress", len: stress, fill: "#b91c1c" },
+      { key: "mid", len: mid, fill: "#94a3b8" },
+      { key: "high", len: high, fill: "#15803d" },
+    ];
+
+    let acc = 0;
+    g.selectAll("rect")
+      .data(segs)
+      .join("rect")
+      .attr("x", (d) => {
+        const start = acc;
+        acc += d.len;
+        return x(start);
+      })
+      .attr("y", 0)
+      .attr("width", (d) => Math.max(0, x(d.len) - x(0)))
+      .attr("height", h - 8)
+      .attr("rx", 4)
+      .attr("fill", (d) => d.fill);
+
+    g.append("rect")
+      .attr("x", 0)
+      .attr("y", 0)
+      .attr("width", w)
+      .attr("height", h - 8)
+      .attr("rx", 4)
+      .attr("fill", "none")
+      .attr("stroke", "#cbd5e1");
+
+    const labels = g
+      .append("g")
+      .attr("transform", `translate(0,${h})`);
+    labels
+      .append("text")
+      .attr("x", 0)
+      .attr("fill", "#64748b")
+      .attr("font-size", 11)
+      .text(`Stress ${fmtPct(stress * 100)}% · Moderate ${fmtPct(mid * 100)}% · High health ${fmtPct(high * 100)}%`);
+  }
+
+  function renderSeriesChart(regionRows, currentDateStr) {
+    const svg = d3.select("#series-chart");
+    svg.selectAll("*").remove();
+
+    const margin = { top: 12, right: 16, bottom: 36, left: 44 };
+    const W = 640;
+    const H = 220;
+    const iw = W - margin.left - margin.right;
+    const ih = H - margin.top - margin.bottom;
+
+    const parse = (d) => new Date(d.date);
+    const data = regionRows.slice().sort((a, b) => parse(a) - parse(b));
+
+    const x = d3
+      .scaleTime()
+      .domain(d3.extent(data, parse))
+      .range([0, iw]);
+
+    const y = d3
+      .scaleLinear()
+      .domain([0, 1])
+      .nice()
+      .range([ih, 0]);
+
+    const lineStress = d3
+      .line()
+      .x((d) => x(parse(d)))
+      .y((d) => y(d.stress_share));
+
+    const lineNdvi = d3
+      .line()
+      .x((d) => x(parse(d)))
+      .y((d) => y(d.mean_ndvi));
+
+    const g = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
+
+    g.append("g")
+      .attr("transform", `translate(0,${ih})`)
+      .call(d3.axisBottom(x).ticks(6))
+      .attr("class", "axis");
+
+    g.append("g")
+      .call(d3.axisLeft(y).ticks(5).tickFormat(d3.format(".2f")))
+      .attr("class", "axis");
+
+    g.append("path")
+      .datum(data)
+      .attr("fill", "none")
+      .attr("stroke", "#b91c1c")
+      .attr("stroke-width", 2)
+      .attr("d", lineStress);
+
+    g.append("path")
+      .datum(data)
+      .attr("fill", "none")
+      .attr("stroke", "#047857")
+      .attr("stroke-width", 2)
+      .attr("stroke-dasharray", "6 4")
+      .attr("d", lineNdvi);
+
+    const cur = data.find((d) => d.date === currentDateStr);
+    if (cur) {
+      const cx = x(parse(cur));
+      g.append("line")
+        .attr("x1", cx)
+        .attr("x2", cx)
+        .attr("y1", 0)
+        .attr("y2", ih)
+        .attr("stroke", "#0f172a")
+        .attr("stroke-width", 1)
+        .attr("stroke-dasharray", "4 3")
+        .attr("opacity", 0.6);
+
+      g.append("circle")
+        .attr("cx", cx)
+        .attr("cy", y(cur.stress_share))
+        .attr("r", 5)
+        .attr("fill", "#b91c1c")
+        .attr("stroke", "#fff")
+        .attr("stroke-width", 1.5);
+
+      g.append("circle")
+        .attr("cx", cx)
+        .attr("cy", y(cur.mean_ndvi))
+        .attr("r", 5)
+        .attr("fill", "#047857")
+        .attr("stroke", "#fff")
+        .attr("stroke-width", 1.5);
+    }
+
+    const leg = svg.append("g").attr("transform", `translate(${margin.left},${H - 6})`);
+    leg
+      .append("text")
+      .attr("x", 0)
+      .attr("fill", "#b91c1c")
+      .attr("font-size", 11)
+      .attr("font-weight", 600)
+      .text("Stress share");
+    leg
+      .append("text")
+      .attr("x", 88)
+      .attr("fill", "#047857")
+      .attr("font-size", 11)
+      .attr("font-weight", 600)
+      .text("Mean NDVI (right axis scale 0–1)");
+    leg
+      .append("text")
+      .attr("x", 260)
+      .attr("fill", "#64748b")
+      .attr("font-size", 10)
+      .text("(0–1 scale: stress = fraction of pixels; mean NDVI = colormap decode)");
+  }
+
+  function updateMap(url) {
+    const img = document.getElementById("wms-img");
+    const loading = document.getElementById("map-loading");
+    img.classList.remove("loaded");
+    loading.style.display = "block";
+    img.onload = () => {
+      img.classList.add("loaded");
+      loading.style.display = "none";
+    };
+    img.onerror = () => {
+      loading.textContent = "Map failed to load (network or CORS).";
+    };
+    img.src = url;
+  }
+
+  d3.json(DATA_URL)
+    .then((raw) => {
+      if (!Array.isArray(raw) || raw.length === 0) {
+        showError("No rows in JSON.");
+        return;
+      }
+
+      document.getElementById("fetch-note").hidden = true;
+      document.getElementById("controls").hidden = false;
+      document.getElementById("main-grid").hidden = false;
+
+      const byRegion = d3.group(raw, (d) => d.region);
+      const regions = Array.from(byRegion.keys()).sort();
+
+      const dates = Array.from(new Set(raw.map((d) => d.date))).sort();
+
+      const regionSelect = d3.select("#region-select");
+      regionSelect
+        .selectAll("option")
+        .data(regions)
+        .join("option")
+        .attr("value", (d) => d)
+        .text((d) => d);
+
+      const slider = document.getElementById("time-slider");
+      slider.max = String(dates.length - 1);
+
+      function currentSlice() {
+        const r = regionSelect.property("value");
+        const idx = +slider.value;
+        const dateStr = dates[idx];
+        const row = raw.find((d) => d.region === r && d.date === dateStr);
+        return { row, dateStr, idx, r };
+      }
+
+      function refresh() {
+        const { row, dateStr } = currentSlice();
+        document.getElementById("time-label").textContent = row
+          ? d3.timeFormat("%B %Y")(new Date(row.date))
+          : dateStr;
+
+        if (!row) return;
+
+        const h = mapHeightForBbox(row.bbox, MAP_WIDTH);
+        const url = buildWmsUrl(row.bbox, row.date, MAP_WIDTH, h);
+        document.getElementById("wms-img").setAttribute("height", h);
+        updateMap(url);
+
+        renderStats(row);
+        renderShareBar(row);
+
+        const regionRows = byRegion.get(row.region) || [];
+        renderSeriesChart(regionRows, dateStr);
+      }
+
+      regionSelect.on("change", refresh);
+      d3.select(slider).on("input", refresh);
+
+      slider.value = "0";
+      refresh();
+    })
+    .catch((e) => {
+      showError("Could not load " + DATA_URL + ": " + (e && e.message ? e.message : String(e)));
+    });
+})();
+  </script>
+</body>
+</html>
