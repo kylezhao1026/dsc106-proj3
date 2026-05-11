@@ -124,7 +124,7 @@
     .viz-embed iframe {
       display: block;
       width: 100%;
-      min-height: 820px;
+      min-height: 1080px;
       border: 0;
     }
   </style>
@@ -144,7 +144,8 @@
       <div class="methods">
         <p>
           Monthly composites use <strong>MODIS Terra L3 NDVI Monthly</strong> from NASA
-          <strong>GIBS WMS</strong>. Pixels are decoded with the official GIBS NDVI colormap to produce
+          <strong>GIBS WMS</strong> (Aqua is used only for April&nbsp;2025 when Terra has no tile).
+          Pixels are decoded with the official GIBS NDVI colormap to produce
           approximate regional means (exploratory / visualization-scale, not raw science retrieval).
         </p>
         <ul>
@@ -238,7 +239,7 @@
             loading="lazy"
           />
           <figcaption>
-            <strong>MODIS Terra monthly NDVI heatmap.</strong>
+            <strong>MODIS Terra monthly NDVI heatmap</strong> (Aqua fill for April&nbsp;2025 where Terra is missing).
             Color shows approximate mean NDVI from the GIBS colormap.
           </figcaption>
         </figure>

@@ -9,12 +9,26 @@ Question:
 The script downloads MODIS Terra monthly NDVI imagery from NASA GIBS WMS,
 decodes the GIBS colorized pixels back to approximate NDVI values using the
 official GIBS colormap XML, and aggregates the results by region and month.
+If Terra returns no visible pixels for April 2025 only, the same request is
+retried with MODIS Aqua L3 NDVI Monthly (Terra has no tile that month on GIBS).
 
 Outputs:
     data/modis_ndvi_region_month.csv
     data/modis_ndvi_region_month.json
     figures/modis_ndvi_stress_health_heatmap.png
     figures/modis_ndvi_stress_health_lines.png
+
+Each JSON element matches the row dicts below (region, date, year, month, bbox,
+mean_ndvi, median_ndvi, stress_share, high_health_share, valid_pixels)—that is
+the schema ``interactive.html`` / ``js/interactive.js`` expect from ``d3.json``.
+
+Rebuild a longer series (same schema; GIBS may take a while):
+
+    python3 scripts/modis_ndvi_stress_health.py --start 2006-01 --end 2026-05
+
+Omit ``--end`` to run through the current calendar month. The copy under
+``data/`` in git is a small **2023-only** sample; a full class build replaces
+those files with the command above (or your chosen ``--start`` / ``--end``).
 """
 
 from __future__ import annotations
@@ -25,6 +39,7 @@ import json
 import math
 import re
 import textwrap
+import time
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
@@ -43,6 +58,8 @@ from PIL import Image
 WMS_URL = "https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi"
 COLORMAP_URL = "https://gibs.earthdata.nasa.gov/colormaps/v1.3/MODIS_L3_NDVI.xml"
 LAYER = "MODIS_Terra_L3_NDVI_Monthly"
+# GIBS occasionally has no Terra tile for a month (e.g. 2025-04); Aqua still has coverage.
+LAYER_AQUA_FALLBACK = "MODIS_Aqua_L3_NDVI_Monthly"
 
 
 @dataclass(frozen=True)
@@ -132,13 +149,16 @@ def download_ndvi_image(
     month: date,
     width: int,
     height: int,
+    *,
+    layer: str | None = None,
 ) -> Image.Image:
     lon_min, lat_min, lon_max, lat_max = region.bbox
+    wms_layer = layer or LAYER
     params = {
         "SERVICE": "WMS",
         "VERSION": "1.1.1",
         "REQUEST": "GetMap",
-        "LAYERS": LAYER,
+        "LAYERS": wms_layer,
         "STYLES": "",
         "FORMAT": "image/png",
         "TRANSPARENT": "true",
@@ -148,8 +168,28 @@ def download_ndvi_image(
         "HEIGHT": str(height),
         "TIME": month.isoformat(),
     }
-    response = session.get(WMS_URL, params=params, timeout=60)
-    response.raise_for_status()
+    response: requests.Response | None = None
+    last_err: BaseException | None = None
+    for attempt in range(5):
+        try:
+            response = session.get(WMS_URL, params=params, timeout=90)
+            response.raise_for_status()
+            break
+        except requests.HTTPError as err:
+            last_err = err
+            code = err.response.status_code if err.response is not None else 0
+            if code in (429, 500, 502, 503, 504) and attempt < 4:
+                time.sleep(2.0 * (2**attempt))
+                continue
+            raise
+        except requests.RequestException as err:
+            last_err = err
+            if attempt < 4:
+                time.sleep(2.0 * (2**attempt))
+                continue
+            raise
+    if response is None:
+        raise RuntimeError(f"GIBS request failed after retries: {last_err!r}")
 
     content_type = response.headers.get("content-type", "")
     if "image" not in content_type:
@@ -221,9 +261,17 @@ def write_csv(rows: list[dict[str, object]], path: Path) -> None:
         writer.writerows(rows)
 
 
+def _json_safe_value(value: object) -> object:
+    """JSON has no NaN/Infinity; browsers reject them. Emit null instead."""
+    if isinstance(value, float) and (math.isnan(value) or math.isinf(value)):
+        return None
+    return value
+
+
 def write_json(rows: list[dict[str, object]], path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(rows, indent=2), encoding="utf-8")
+    safe_rows = [{key: _json_safe_value(val) for key, val in row.items()} for row in rows]
+    path.write_text(json.dumps(safe_rows, indent=2, allow_nan=False), encoding="utf-8")
 
 
 def load_csv_rows(path: Path) -> list[dict[str, object]]:
@@ -685,6 +733,16 @@ def build_rows(
                 print(f"Fetching {region.name} {month.isoformat()}...")
                 image = download_ndvi_image(session, region, month, width, height)
                 ndvi = decode_ndvi(image, color_table, value_table, sample_stride)
+                if (
+                    ndvi.size == 0
+                    and month.year == 2025
+                    and month.month == 4
+                ):
+                    print(f"  Terra returned no pixels; retrying with Aqua ({region.name} {month.isoformat()})…")
+                    image = download_ndvi_image(
+                        session, region, month, width, height, layer=LAYER_AQUA_FALLBACK
+                    )
+                    ndvi = decode_ndvi(image, color_table, value_table, sample_stride)
                 summary = summarize_ndvi(ndvi, stress_threshold, high_threshold)
                 rows.append(
                     {
@@ -703,8 +761,16 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Download MODIS Terra monthly NDVI from NASA GIBS and summarize vegetation health."
     )
-    parser.add_argument("--start", default="2023-01", help="Start month in YYYY-MM format.")
-    parser.add_argument("--end", default="2023-12", help="End month in YYYY-MM format.")
+    parser.add_argument(
+        "--start",
+        default="2006-01",
+        help="Start month in YYYY-MM format (MODIS Terra monthly NDVI on GIBS starts in 2000).",
+    )
+    parser.add_argument(
+        "--end",
+        default=None,
+        help="End month in YYYY-MM format. Default: current calendar month.",
+    )
     parser.add_argument("--width", type=int, default=640, help="Downloaded WMS image width per region.")
     parser.add_argument("--height", type=int, default=420, help="Downloaded WMS image height per region.")
     parser.add_argument("--sample-stride", type=int, default=3, help="Use every nth pixel to keep runtime small.")
@@ -751,7 +817,11 @@ def main() -> None:
     if args.from_csv:
         rows = load_csv_rows(csv_path)
     else:
-        months = month_starts(args.start, args.end)
+        end_month = args.end
+        if end_month is None:
+            today = date.today()
+            end_month = f"{today.year}-{today.month:02d}"
+        months = month_starts(args.start, end_month)
         rows = build_rows(
             DEFAULT_REGIONS,
             months,

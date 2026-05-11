@@ -35,15 +35,16 @@
     }
     header h1 { margin: 0 0 0.35rem; font-size: 1.35rem; font-weight: 650; }
     header p { margin: 0; font-size: 0.95rem; opacity: 0.95; max-width: 48rem; }
-    .wrap { max-width: 56rem; margin: 0 auto; padding: 1.25rem; }
+    .wrap { max-width: min(96rem, 100%); margin: 0 auto; padding: 1.25rem; }
     .note {
       font-size: 0.85rem;
       color: var(--muted);
       margin-bottom: 1rem;
       padding: 0.65rem 0.75rem;
       background: #fff;
-      border: 1px solid var(--border);
+      border: none;
       border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
     }
     .controls {
       display: flex;
@@ -53,8 +54,9 @@
       margin-bottom: 1rem;
       padding: 1rem;
       background: #fff;
-      border: 1px solid var(--border);
+      border: none;
       border-radius: 10px;
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
     }
     .controls label { font-weight: 600; font-size: 0.9rem; }
     .controls select {
@@ -64,28 +66,134 @@
       border: 1px solid var(--border);
       min-width: 14rem;
     }
-    .slider-block {
-      flex: 1 1 18rem;
+    .anim-controls {
       display: flex;
-      flex-direction: column;
-      gap: 0.35rem;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.45rem;
+      max-width: 100%;
     }
-    .slider-block input[type="range"] { width: 100%; }
-    .slider-meta { font-size: 0.88rem; color: var(--muted); }
-    .grid {
+    .anim-controls button {
+      font: inherit;
+      font-weight: 600;
+      font-size: 0.88rem;
+      padding: 0.4rem 0.85rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: #fff;
+      color: var(--text);
+      cursor: pointer;
+    }
+    .anim-controls button:hover {
+      background: var(--green-bg);
+      border-color: #b8d9d2;
+    }
+    .anim-controls button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+    .month-scrubber-host {
+      flex: 1 1 100%;
+      min-width: min(100%, 36rem);
+    }
+    .month-scrubber-host svg {
+      display: block;
+      width: 100%;
+      max-width: 42rem;
+      height: auto;
+    }
+    .stress-panel-time {
+      margin-bottom: 0.85rem;
+      padding-bottom: 0.85rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .time-readout {
+      font-size: 0.92rem;
+      font-weight: 650;
+      color: var(--text);
+      margin: 0.25rem 0 0.35rem;
+    }
+    .time-readout .muted {
+      font-weight: 500;
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+    .compare-row {
       display: grid;
       gap: 1.25rem;
       grid-template-columns: 1fr;
+      margin-bottom: 1.25rem;
     }
     @media (min-width: 900px) {
-      .grid { grid-template-columns: 1fr 1fr; align-items: start; }
+      .compare-row { grid-template-columns: 1fr 1fr; align-items: start; }
+      #main-grid[data-mode="compare"] .compare-row {
+        align-items: stretch;
+      }
     }
+    #main-grid[data-mode="compare"] {
+      display: block;
+    }
+    /* One region: map left, stress + NDVI chart right (classic two-column layout). */
+    #main-grid[data-mode="one"] {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      grid-template-rows: auto 1fr;
+      grid-template-areas:
+        "map stress"
+        "map chart";
+      gap: 1.25rem;
+      align-items: start;
+    }
+    #main-grid[data-mode="one"] > .maps-row {
+      grid-area: map;
+      display: block;
+      margin-bottom: 0;
+    }
+    #main-grid[data-mode="one"] > .stress-row {
+      grid-area: stress;
+      display: block;
+      margin-bottom: 0;
+    }
+    #main-grid[data-mode="one"] > .panel-chart {
+      grid-area: chart;
+      margin-bottom: 0;
+    }
+    #main-grid[data-mode="one"] .only-compare {
+      display: none !important;
+    }
+    #main-grid[data-mode="one"] .maps-row .panel:not(.only-compare) {
+      max-width: none;
+      width: 100%;
+    }
+    @media (max-width: 899px) {
+      #main-grid[data-mode="one"] {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto;
+        grid-template-areas:
+          "map"
+          "stress"
+          "chart";
+      }
+    }
+    .panel-chart { margin-bottom: 0; }
+    .region-compare-warn {
+      flex: 1 1 100%;
+      font-size: 0.85rem;
+      color: #a84820;
+      margin: 0;
+    }
+    .region-compare-warn[hidden] { display: none !important; }
+    #controls[data-view="one"] .only-compare-controls {
+      display: none !important;
+    }
+    .map-split-caption { font-size: 0.8rem; color: var(--muted); margin: 0.5rem 0 0; }
     .panel {
       background: #fff;
-      border: 1px solid var(--border);
+      border: none;
       border-radius: 10px;
       padding: 1rem;
       overflow: hidden;
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.07);
     }
     .panel h2 { margin: 0 0 0.75rem; font-size: 1.05rem; }
     .map-wrap {
@@ -97,16 +205,58 @@
       align-items: center;
       justify-content: center;
     }
+    #main-grid[data-mode="compare"] .maps-row > .panel {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+    /*
+      Compare: --map-compare-h = min native tile height (px at WMS width).
+      Both imgs use that as CSS height + object-fit: contain so the taller map scales down until heights match (no crop).
+      Map wrap does not flex-grow so extra panel space stays white, not dark bands above/below the image.
+    */
+    #main-grid[data-mode="compare"] .maps-row .map-wrap {
+      flex: 0 0 auto;
+      width: 100%;
+      min-height: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+    #main-grid[data-mode="compare"] .stress-row > .panel {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+    #main-grid[data-mode="compare"] .stress-row .stress-share-block {
+      margin-top: auto;
+    }
     .map-wrap img {
       display: block;
-      max-width: 100%;
+      width: 100%;
       height: auto;
+      max-width: 100%;
+      border-radius: 6px;
+    }
+    #main-grid[data-mode="compare"] .maps-row .map-wrap img {
+      position: relative;
+      width: auto;
+      height: var(--map-compare-h, 240px);
+      max-width: 100%;
+      object-fit: contain;
+      object-position: center;
       border-radius: 6px;
     }
     .map-wrap .loading {
       position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
       color: #94a3b8;
       font-size: 0.9rem;
+      z-index: 1;
+      white-space: nowrap;
     }
     .map-wrap img.loaded + .loading { display: none; }
     .caption { font-size: 0.8rem; color: var(--muted); margin: 0.5rem 0 0; }
@@ -118,7 +268,7 @@
     }
     .stat {
       background: var(--green-bg);
-      border: 1px solid #b8d9d2;
+      border: none;
       border-radius: 8px;
       padding: 0.5rem 0.65rem;
     }
@@ -141,6 +291,61 @@
       padding-bottom: 1rem;
       max-width: min(96vw, 88rem);
     }
+    .share-year-panel {
+      margin-top: 1.1rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border);
+    }
+    .share-year-panel h2 {
+      font-size: 1rem;
+      margin-top: 0;
+    }
+    .share-year-note {
+      margin: 0 0 0.5rem;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+    .share-year-chart-wrap {
+      position: relative;
+      max-width: 100%;
+    }
+    .share-year-tooltip {
+      position: absolute;
+      pointer-events: none;
+      z-index: 20;
+      padding: 0.5rem 0.7rem;
+      background: #fff;
+      border: none;
+      border-radius: 8px;
+      box-shadow: 0 6px 20px rgba(15, 23, 42, 0.12);
+      font-size: 0.8rem;
+      line-height: 1.5;
+      min-width: 10rem;
+      visibility: hidden;
+      opacity: 0;
+      transition: opacity 0.08s ease;
+    }
+    .share-year-tooltip.is-visible {
+      visibility: visible;
+      opacity: 1;
+    }
+    .share-year-tooltip .tip-title {
+      font-weight: 650;
+      margin: 0 0 0.4rem;
+      color: var(--text);
+      font-size: 0.82rem;
+    }
+    .share-year-tooltip .tip-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 1.25rem;
+      margin: 0.1rem 0;
+    }
+    .share-year-tooltip .tip-row span:first-child { font-weight: 500; }
+    .share-year-tooltip .tip-row span:last-child {
+      font-variant-numeric: tabular-nums;
+      color: var(--text);
+    }
   </style>
 </head>
 <body>
@@ -152,8 +357,8 @@
   <header>
     <h1>Interactive MODIS NDVI &amp; vegetation stress</h1>
     <p>
-      Data from <code>data/modis_ndvi_region_month.json</code> (all regions &amp; months).
-      Map tiles: NASA GIBS WMS <code>MODIS_Terra_L3_NDVI_Monthly</code>.
+      Data from <code>data/modis_ndvi_region_month.json</code>. Use <strong>View</strong> to show one region or compare two side by side; use the trend controls or month scrubber for the selected year.
+      Map tiles: NASA GIBS WMS <code>MODIS_Terra_L3_NDVI_Monthly</code>; maps use <code>MODIS_Aqua_L3_NDVI_Monthly</code> only for <code>2025-04-01</code> (Terra tile missing that month on GIBS).
       Stress = share of pixels with NDVI &lt; 0.30 (decoded colormap); high health = NDVI ≥ 0.60.
     </p>
   </header>
@@ -168,30 +373,82 @@
 
     <div class="controls" id="controls" hidden>
       <label>
-        Region
-        <select id="region-select"></select>
+        View
+        <select id="view-mode">
+          <option value="one" selected>One region</option>
+          <option value="compare">Compare two regions</option>
+        </select>
       </label>
-      <div class="slider-block">
-        <label for="time-slider">Time (month)</label>
-        <input type="range" id="time-slider" min="0" value="0" step="1" />
-        <div class="slider-meta"><span id="time-label"></span></div>
+      <label id="label-region-left-wrap">
+        <span id="label-region-left">Region</span>
+        <select id="region-select-left"></select>
+      </label>
+      <label id="label-region-right-wrap" class="only-compare-controls">
+        <span id="label-region-right">Region (right)</span>
+        <select id="region-select-right"></select>
+      </label>
+      <p class="region-compare-warn" id="region-compare-warn" hidden>Choose two different regions to compare.</p>
+      <label>
+        Year
+        <select id="year-select"></select>
+      </label>
+      <div class="anim-controls" id="anim-controls"></div>
+      <div class="stress-panel-time" style="border: none; padding: 0; margin: 0; width: 100%;">
+        <div class="time-readout" id="time-readout"></div>
+        <div class="month-scrubber-host" id="month-scrubber-host" aria-label="Select month for stress assessment"></div>
+        <p class="share-heading" style="margin-top: 0.65rem;">Month scrubber (drag or tap)</p>
+        <p class="slider-meta" style="margin: 0;">
+          Drag the scrubber to pick a month. <strong>From January</strong> always replays the year from January; <strong>Resume</strong> continues from the current month after a pause (disabled in December or while playing).
+        </p>
       </div>
     </div>
 
-    <div class="grid" id="main-grid" hidden>
-      <div class="panel">
-        <h2>NDVI map (GIBS API)</h2>
-        <div class="map-wrap">
-          <img id="wms-img" alt="MODIS NDVI monthly composite" width="512" height="512" />
-          <span class="loading" id="map-loading">Loading map…</span>
+    <div id="main-grid" hidden data-mode="one">
+      <div class="compare-row maps-row">
+        <div class="panel">
+          <h2 id="map-title-left">NDVI map</h2>
+          <div class="map-wrap">
+            <img id="wms-img-l" alt="MODIS NDVI left region" width="400" height="400" />
+            <span class="loading" id="map-loading-l">Loading map…</span>
+          </div>
+          <p class="map-split-caption" id="map-caption-left">Updates with the month scrubber or animation controls.</p>
         </div>
-        <p class="caption">Image updates when you move the time slider or change region.</p>
+        <div class="panel only-compare">
+          <h2 id="map-title-right">NDVI map — right</h2>
+          <div class="map-wrap">
+            <img id="wms-img-r" alt="MODIS NDVI right region" width="400" height="400" />
+            <span class="loading" id="map-loading-r">Loading map…</span>
+          </div>
+          <p class="map-split-caption">Same month and year as the left map.</p>
+        </div>
       </div>
-      <div class="panel">
-        <h2 id="stress-panel-title">Stress Assessment</h2>
-        <div class="stats" id="stats"></div>
-        <p class="share-heading">Vegetation Health Share</p>
-        <svg id="share-bar" viewBox="0 0 400 56" preserveAspectRatio="xMidYMid meet"></svg>
+      <div class="compare-row stress-row">
+        <div class="panel">
+          <h2 id="stress-panel-title-l">Stress assessment</h2>
+          <div class="stats" id="stats-l"></div>
+          <div class="stress-share-block">
+            <p class="share-heading">Vegetation health share</p>
+            <svg id="share-bar-l" viewBox="0 0 400 56" preserveAspectRatio="xMidYMid meet"></svg>
+          </div>
+        </div>
+        <div class="panel only-compare">
+          <h2 id="stress-panel-title-r">Stress assessment — right</h2>
+          <div class="stats" id="stats-r"></div>
+          <div class="stress-share-block">
+            <p class="share-heading">Vegetation health share</p>
+            <svg id="share-bar-r" viewBox="0 0 400 56" preserveAspectRatio="xMidYMid meet"></svg>
+          </div>
+        </div>
+      </div>
+      <div class="panel panel-chart">
+        <div class="share-year-panel" style="margin: 0; padding: 0; border: none;">
+          <h2 id="share-year-title">NDVI vs. 20-year monthly average</h2>
+          <p class="share-year-note" id="share-year-note"></p>
+          <div class="share-year-chart-wrap">
+            <svg id="share-year-chart" viewBox="0 0 760 400" preserveAspectRatio="xMidYMid meet"></svg>
+            <div id="share-year-tooltip" class="share-year-tooltip" aria-hidden="true"></div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -200,245 +457,6 @@
     WMS endpoint: gibs.earthdata.nasa.gov · Same thresholds as <code>scripts/modis_ndvi_stress_health.py</code>
   </footer>
 
-  <script>
-(function () {
-  if (document.body.classList.contains("embed")) {
-    const n = document.getElementById("fetch-note");
-    if (n) {
-      n.innerHTML =
-        "Serve the repo over HTTP (e.g. <code>python3 -m http.server 8080</code>) or GitHub Pages so the JSON loads inside this embedded view.";
-    }
-  }
-
-  const WMS_BASE = "https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi";
-  const LAYER = "MODIS_Terra_L3_NDVI_Monthly";
-  const DATA_URL = "data/modis_ndvi_region_month.json";
-  const MAP_WIDTH = 512;
-
-  const _rs = getComputedStyle(document.documentElement);
-  const VIZ = {
-    stress: _rs.getPropertyValue("--stress").trim() || "#c75a2a",
-    moderate: _rs.getPropertyValue("--mid").trim() || "#8e9faf",
-    healthy: _rs.getPropertyValue("--healthy").trim() || "#2a9483",
-    ndvi: _rs.getPropertyValue("--ndvi-line").trim() || "#2a75ad",
-    sep: _rs.getPropertyValue("--viz-sep").trim() || "#cbd5e1",
-    muted: _rs.getPropertyValue("--muted").trim() || "#475569",
-    text: _rs.getPropertyValue("--text").trim() || "#0f172a",
-  };
-
-  const fmtPct = d3.format(".1f");
-  const fmtNdvi = d3.format(".3f");
-
-  function buildWmsUrl(bboxStr, timeIso, width, height) {
-    const parts = bboxStr.split(",").map(Number);
-    const [lonMin, latMin, lonMax, latMax] = parts;
-    const params = new URLSearchParams({
-      SERVICE: "WMS",
-      VERSION: "1.1.1",
-      REQUEST: "GetMap",
-      LAYERS: LAYER,
-      STYLES: "",
-      FORMAT: "image/png",
-      TRANSPARENT: "true",
-      SRS: "EPSG:4326",
-      BBOX: `${lonMin},${latMin},${lonMax},${latMax}`,
-      WIDTH: String(width),
-      HEIGHT: String(height),
-      TIME: timeIso,
-    });
-    return `${WMS_BASE}?${params.toString()}`;
-  }
-
-  function mapHeightForBbox(bboxStr, width) {
-    const [lonMin, latMin, lonMax, latMax] = bboxStr.split(",").map(Number);
-    const lonSpan = Math.max(1e-6, lonMax - lonMin);
-    const latSpan = Math.max(1e-6, latMax - latMin);
-    return Math.max(120, Math.round((width * latSpan) / lonSpan));
-  }
-
-  function moderateShare(d) {
-    const s = d.stress_share + d.high_health_share;
-    return Math.max(0, Math.min(1, 1 - s));
-  }
-
-  function showError(msg) {
-    const el = document.getElementById("error");
-    el.textContent = msg;
-    el.hidden = false;
-  }
-
-  function renderStats(selection) {
-    const root = d3.select("#stats");
-    root.selectAll("*").remove();
-    if (!selection) return;
-
-    const rows = [
-      { k: "Mean NDVI", v: fmtNdvi(selection.mean_ndvi), accent: VIZ.ndvi },
-      { k: "Median NDVI", v: fmtNdvi(selection.median_ndvi), accent: VIZ.ndvi },
-      { k: "Stress share", v: fmtPct(selection.stress_share * 100) + "%", accent: VIZ.stress },
-      { k: "High health", v: fmtPct(selection.high_health_share * 100) + "%", accent: VIZ.healthy },
-    ];
-
-    root
-      .selectAll("div.stat")
-      .data(rows)
-      .join("div")
-      .attr("class", "stat")
-      .each(function (d) {
-        const box = d3.select(this);
-        box.append("div").attr("class", "k").text(d.k);
-        box
-          .append("div")
-          .attr("class", "v")
-          .style("color", d.accent || null)
-          .text(d.v);
-      });
-  }
-
-  function renderShareBar(selection) {
-    const svg = d3.select("#share-bar");
-    svg.selectAll("*").remove();
-    if (!selection) return;
-
-    const w = 400;
-    const h = 40;
-    const barPadTop = 8;
-    const barRectH = h - 8;
-    const stress = selection.stress_share;
-    const high = selection.high_health_share;
-    const mid = moderateShare(selection);
-    const x = d3.scaleLinear().domain([0, 1]).range([0, w]);
-
-    const g = svg.append("g").attr("transform", `translate(0,${barPadTop})`);
-
-    const segs = [
-      { key: "stress", len: stress, fill: VIZ.stress },
-      { key: "mid", len: mid, fill: VIZ.moderate },
-      { key: "high", len: high, fill: VIZ.healthy },
-    ];
-
-    let acc = 0;
-    g.selectAll("rect")
-      .data(segs)
-      .join("rect")
-      .attr("x", (d) => {
-        const start = acc;
-        acc += d.len;
-        return x(start);
-      })
-      .attr("y", 0)
-      .attr("width", (d) => Math.max(0, x(d.len) - x(0)))
-      .attr("height", barRectH)
-      .attr("rx", 4)
-      .attr("fill", (d) => d.fill);
-
-    g.append("rect")
-      .attr("x", 0)
-      .attr("y", 0)
-      .attr("width", w)
-      .attr("height", barRectH)
-      .attr("rx", 4)
-      .attr("fill", "none")
-      .attr("stroke", "#cbd5e1");
-
-    const labelY = barRectH + 3;
-    const labels = g.append("g").attr("transform", `translate(0,${labelY})`);
-    const capLine = labels
-      .append("text")
-      .attr("x", 0)
-      .attr("y", 0)
-      .attr("dominant-baseline", "hanging")
-      .attr("font-size", 11);
-    capLine.append("tspan").attr("fill", VIZ.stress).attr("font-weight", 650).text(`Stress ${fmtPct(stress * 100)}%`);
-    capLine.append("tspan").attr("fill", VIZ.sep).attr("font-weight", 400).text(" · ");
-    capLine.append("tspan").attr("fill", VIZ.moderate).attr("font-weight", 600).text(`Moderate ${fmtPct(mid * 100)}%`);
-    capLine.append("tspan").attr("fill", VIZ.sep).attr("font-weight", 400).text(" · ");
-    capLine.append("tspan").attr("fill", VIZ.healthy).attr("font-weight", 650).text(`High health ${fmtPct(high * 100)}%`);
-  }
-
-  function updateMap(url) {
-    const img = document.getElementById("wms-img");
-    const loading = document.getElementById("map-loading");
-    img.classList.remove("loaded");
-    loading.style.display = "block";
-    img.onload = () => {
-      img.classList.add("loaded");
-      loading.style.display = "none";
-    };
-    img.onerror = () => {
-      loading.textContent = "Map failed to load (network or CORS).";
-    };
-    img.src = url;
-  }
-
-  d3.json(DATA_URL)
-    .then((raw) => {
-      if (!Array.isArray(raw) || raw.length === 0) {
-        showError("No rows in JSON.");
-        return;
-      }
-
-      document.getElementById("fetch-note").hidden = true;
-      document.getElementById("controls").hidden = false;
-      document.getElementById("main-grid").hidden = false;
-
-      const regions = Array.from(new Set(raw.map((d) => d.region))).sort();
-
-      const dates = Array.from(new Set(raw.map((d) => d.date))).sort();
-
-      const regionSelect = d3.select("#region-select");
-      regionSelect
-        .selectAll("option")
-        .data(regions)
-        .join("option")
-        .attr("value", (d) => d)
-        .text((d) => d);
-
-      const slider = document.getElementById("time-slider");
-      slider.max = String(dates.length - 1);
-
-      function currentSlice() {
-        const r = regionSelect.property("value");
-        const idx = +slider.value;
-        const dateStr = dates[idx];
-        const row = raw.find((d) => d.region === r && d.date === dateStr);
-        return { row, dateStr, idx, r };
-      }
-
-      function refresh() {
-        const { row, dateStr } = currentSlice();
-        const tDate = row ? new Date(row.date) : dateStr ? new Date(dateStr) : null;
-        const monthPhrase = tDate ? d3.timeFormat("%B %Y")(tDate) : "";
-
-        document.getElementById("time-label").textContent = row
-          ? d3.timeFormat("%B %Y")(new Date(row.date))
-          : dateStr;
-
-        document.getElementById("stress-panel-title").textContent = monthPhrase
-          ? `Stress Assessment for ${monthPhrase}`
-          : "Stress Assessment";
-
-        if (!row) return;
-
-        const h = mapHeightForBbox(row.bbox, MAP_WIDTH);
-        const url = buildWmsUrl(row.bbox, row.date, MAP_WIDTH, h);
-        document.getElementById("wms-img").setAttribute("height", h);
-        updateMap(url);
-
-        renderStats(row);
-        renderShareBar(row);
-      }
-
-      regionSelect.on("change", refresh);
-      d3.select(slider).on("input", refresh);
-
-      slider.value = "0";
-      refresh();
-    })
-    .catch((e) => {
-      showError("Could not load " + DATA_URL + ": " + (e && e.message ? e.message : String(e)));
-    });
-})();
-  </script>
+  <script src="js/interactive.js"></script>
 </body>
 </html>
