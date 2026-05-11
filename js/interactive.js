@@ -1,10 +1,8 @@
 (function () {
-  if (document.body.classList.contains("embed")) {
-    const n = document.getElementById("fetch-note");
-    if (n) {
-      n.innerHTML =
-        "Serve the repo over HTTP (e.g. <code>python3 -m http.server 8080</code>) or GitHub Pages so the JSON loads inside this embedded view.";
-    }
+  if (d3.select("body").classed("embed")) {
+    d3.select("#fetch-note").html(
+      "Serve the repo over HTTP (e.g. <code>python3 -m http.server 8080</code>) or GitHub Pages so the JSON loads inside this embedded view."
+    );
   }
 
   const WMS_BASE = "https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi";
@@ -44,22 +42,23 @@
   const fmtNdvi = d3.format(".3f");
 
   /** NDVI chart hover tips: viewport positioning so parent `overflow: hidden` does not clip them. */
-  function positionShareYearTooltip(tipEl, event, html) {
-    tipEl.innerHTML = html;
+  function positionShareYearTooltip(tipSelection, event, html) {
+    const node = tipSelection.node();
+    if (!node) return;
+    tipSelection.html(html);
     const pad = 12;
     const margin = 8;
     const vw = window.innerWidth;
     const vh = window.innerHeight;
-    const tw = tipEl.offsetWidth || 160;
-    const th = tipEl.offsetHeight || 90;
+    const tw = node.offsetWidth || 160;
+    const th = node.offsetHeight || 90;
     let left = event.clientX + pad;
     let top = event.clientY + pad;
     if (left + tw > vw - margin) left = event.clientX - tw - pad;
     if (top + th > vh - margin) top = event.clientY - th - pad;
     left = Math.max(margin, Math.min(left, vw - tw - margin));
     top = Math.max(margin, Math.min(top, vh - th - margin));
-    tipEl.style.left = `${left}px`;
-    tipEl.style.top = `${top}px`;
+    tipSelection.style("left", `${left}px`).style("top", `${top}px`);
   }
 
   /** Per-side: after first successful tile, skip blocking “Loading map…” overlay on updates. */
@@ -114,9 +113,7 @@
   }
 
   function showError(msg) {
-    const el = document.getElementById("error");
-    el.textContent = msg;
-    el.hidden = false;
+    d3.select("#error").text(msg).property("hidden", false);
   }
 
   function renderStats(selection, statsSelector) {
@@ -382,11 +379,9 @@
       .attr("font-size", 10)
       .text(`Same-month avg (${blRng.low}–${blRng.high})`);
 
-    const tipEl = document.getElementById("share-year-tooltip");
-    if (!tipEl) return;
-    tipEl.classList.remove("is-visible");
-    tipEl.setAttribute("aria-hidden", "true");
-    tipEl.innerHTML = "";
+    const tip = d3.select("#share-year-tooltip");
+    if (tip.empty()) return;
+    tip.classed("is-visible", false).attr("aria-hidden", "true").html("");
 
     const bandHalf = (x.step() * (1 - x.padding())) / 2 + 2;
     const showOneTip = (event, d) => {
@@ -397,9 +392,8 @@
         `<div class="tip-title">${monthLab} ${selectedYear}</div>` +
         `<div class="tip-row"><span style="color:${VIZ.ndvi}">${selectedYear}</span><span>${yv}</span></div>` +
         `<div class="tip-row"><span style="color:${VIZ.baseline}">Baseline</span><span>${bv}</span></div>`;
-      tipEl.classList.add("is-visible");
-      tipEl.setAttribute("aria-hidden", "false");
-      positionShareYearTooltip(tipEl, event, html);
+      tip.classed("is-visible", true).attr("aria-hidden", "false");
+      positionShareYearTooltip(tip, event, html);
     };
     g.selectAll(".hover-band")
       .data(points)
@@ -414,9 +408,7 @@
       .on("mouseenter", showOneTip)
       .on("mousemove", showOneTip)
       .on("mouseleave", () => {
-        tipEl.classList.remove("is-visible");
-        tipEl.setAttribute("aria-hidden", "true");
-        tipEl.innerHTML = "";
+        tip.classed("is-visible", false).attr("aria-hidden", "true").html("");
       });
   }
 
@@ -592,12 +584,10 @@
     legItem(0, 18, VIZ.baseline, "6 4", 14, `${ell(labelL, 14)} ${br.low}–${br.high}`);
     legItem(200, 18, VIZ.baselineR, "4 4", 14, `${ell(labelR, 14)} ${br.low}–${br.high}`);
 
-    const tipEl = document.getElementById("share-year-tooltip");
-    if (!tipEl) return;
+    const tip = d3.select("#share-year-tooltip");
+    if (tip.empty()) return;
 
-    tipEl.classList.remove("is-visible");
-    tipEl.setAttribute("aria-hidden", "true");
-    tipEl.innerHTML = "";
+    tip.classed("is-visible", false).attr("aria-hidden", "true").html("");
 
     const short = (s) => (s.length > 22 ? s.slice(0, 20) + "…" : s);
     const bandHalf = (x.step() * (1 - x.padding())) / 2 + 2;
@@ -610,9 +600,8 @@
         `<div class="tip-row"><span style="color:${VIZ.ndviR}">${short(labelR)}</span><span>${f(d.yearR)}</span></div>` +
         `<div class="tip-row"><span style="color:${VIZ.baseline}">${short(labelL)} avg</span><span>${f(d.baseL)}</span></div>` +
         `<div class="tip-row"><span style="color:${VIZ.baselineR}">${short(labelR)} avg</span><span>${f(d.baseR)}</span></div>`;
-      tipEl.classList.add("is-visible");
-      tipEl.setAttribute("aria-hidden", "false");
-      positionShareYearTooltip(tipEl, event, html);
+      tip.classed("is-visible", true).attr("aria-hidden", "false");
+      positionShareYearTooltip(tip, event, html);
     };
     g.selectAll(".hover-band")
       .data(points)
@@ -627,35 +616,34 @@
       .on("mouseenter", showBandTip)
       .on("mousemove", showBandTip)
       .on("mouseleave", () => {
-        tipEl.classList.remove("is-visible");
-        tipEl.setAttribute("aria-hidden", "true");
-        tipEl.innerHTML = "";
+        tip.classed("is-visible", false).attr("aria-hidden", "true").html("");
       });
   }
 
   function updateMap(side, url) {
-    const img = document.getElementById(`wms-img-${side}`);
-    const loading = document.getElementById(`map-loading-${side}`);
-    if (!img || !loading) return;
+    const img = d3.select(`#wms-img-${side}`);
+    const loading = d3.select(`#map-loading-${side}`);
+    if (img.empty() || loading.empty()) return;
+    const imgNode = img.node();
     const urlBusted = url + (url.includes("?") ? "&" : "?") + "_cb=" + Date.now();
 
-    img.onload = () => {
-      img.classList.add("loaded");
-      loading.style.display = "none";
+    imgNode.onload = () => {
+      img.classed("loaded", true);
+      loading.style("display", "none");
       mapImageReady[side] = true;
     };
-    img.onerror = () => {
-      loading.textContent = "Map failed to load (network or CORS).";
-      loading.style.display = "block";
-      img.classList.remove("loaded");
+    imgNode.onerror = () => {
+      loading.text("Map failed to load (network or CORS).");
+      loading.style("display", "block");
+      img.classed("loaded", false);
     };
 
     if (!mapImageReady[side]) {
-      img.classList.remove("loaded");
-      loading.style.display = "block";
-      loading.textContent = "Loading map…";
+      img.classed("loaded", false);
+      loading.style("display", "block");
+      loading.text("Loading map…");
     }
-    img.src = urlBusted;
+    img.attr("src", urlBusted);
   }
 
   d3.json(DATA_URL)
@@ -665,9 +653,9 @@
         return;
       }
 
-      document.getElementById("fetch-note").hidden = true;
-      document.getElementById("controls").hidden = false;
-      document.getElementById("main-grid").hidden = false;
+      d3.select("#fetch-note").property("hidden", true);
+      d3.select("#controls").property("hidden", false);
+      d3.select("#main-grid").property("hidden", false);
 
       const byRegion = d3.group(raw, (d) => d.region);
       const regions = Array.from(byRegion.keys()).sort();
@@ -932,9 +920,9 @@
         applyViewModeLayout();
         const compare = isCompareMode();
         const { nameL, nameR, same } = ensureDistinctRegions();
-        document.getElementById("region-compare-warn").hidden = !compare || !same;
+        d3.select("#region-compare-warn").property("hidden", !compare || !same);
 
-        const mainGrid = document.getElementById("main-grid");
+        const mainGridSel = d3.select("#main-grid");
         vizYear = +yearSelect.property("value");
         const blYr = baselineDisplayYearRange(vizYear);
         const baselineYearSpan =
@@ -950,25 +938,23 @@
           const bboxR = rowR?.bbox ?? bboxForRegion(nameR);
           updateReadoutCompare(nameL, nameR, vizYear, vizMonth, rowL, rowR);
           const monthLab = d3.timeFormat("%B %Y")(calendarDate(vizYear, vizMonth));
-          document.getElementById("stress-panel-title-l").textContent = `${nameL} Stress assessment — ${monthLab}`;
-          document.getElementById("stress-panel-title-r").textContent = `${nameR} Stress assessment — ${monthLab}`;
-          document.getElementById("map-title-left").textContent = nameL;
-          document.getElementById("map-title-right").textContent = nameR;
+          d3.select("#stress-panel-title-l").text(`${nameL} Stress assessment — ${monthLab}`);
+          d3.select("#stress-panel-title-r").text(`${nameR} Stress assessment — ${monthLab}`);
+          d3.select("#map-title-left").text(nameL);
+          d3.select("#map-title-right").text(nameR);
 
           const hL = bboxL ? mapHeightForBbox(bboxL, mapW) : 0;
           const hR = bboxR ? mapHeightForBbox(bboxR, mapW) : 0;
           const mapCompareH =
             hL > 0 && hR > 0 ? Math.min(hL, hR) : Math.max(hL, hR, 200);
-          if (mainGrid) mainGrid.style.setProperty("--map-compare-h", `${mapCompareH}px`);
+          mainGridSel.style("--map-compare-h", `${mapCompareH}px`);
 
           if (bboxL) {
-            document.getElementById("wms-img-l").setAttribute("width", mapW);
-            document.getElementById("wms-img-l").setAttribute("height", hL);
+            d3.select("#wms-img-l").attr("width", mapW).attr("height", hL);
             updateMap("l", buildWmsUrl(bboxL, dateStr, mapW, hL));
           }
           if (bboxR) {
-            document.getElementById("wms-img-r").setAttribute("width", mapW);
-            document.getElementById("wms-img-r").setAttribute("height", hR);
+            d3.select("#wms-img-r").attr("width", mapW).attr("height", hR);
             updateMap("r", buildWmsUrl(bboxR, dateStr, mapW, hR));
           }
 
@@ -980,19 +966,19 @@
           const rowsL = byRegion.get(nameL) || [];
           const rowsR = byRegion.get(nameR) || [];
           renderNdviTwoRegionCompare(rowsL, rowsR, nameL, nameR, vizYear, vizMonth, same);
-          document.getElementById("share-year-note").textContent =
-            `NDVI (Normalized Difference Vegetation Index) is a satellite greenness index: higher values usually mean denser, healthier vegetation. Solid lines: each region's mean NDVI for every calendar month in ${vizYear}. Dashed lines: for that same month of year, the average NDVI over ${baselineYearSpan}. Vertical rule: the month selected with the scrubber.`;
+          d3.select("#share-year-note").text(
+            `NDVI (Normalized Difference Vegetation Index) is a satellite greenness index: higher values usually mean denser, healthier vegetation. Solid lines: each region's mean NDVI for every calendar month in ${vizYear}. Dashed lines: for that same month of year, the average NDVI over ${baselineYearSpan}. Vertical rule: the month selected with the scrubber.`
+          );
         } else {
-          if (mainGrid) mainGrid.style.removeProperty("--map-compare-h");
+          mainGridSel.style("--map-compare-h", null);
           updateReadoutSingle(nameL, vizYear, vizMonth, rowL);
           const monthLab = d3.timeFormat("%B %Y")(calendarDate(vizYear, vizMonth));
-          document.getElementById("stress-panel-title-l").textContent = `${nameL} Stress assessment — ${monthLab}`;
-          document.getElementById("map-title-left").textContent = nameL;
+          d3.select("#stress-panel-title-l").text(`${nameL} Stress assessment — ${monthLab}`);
+          d3.select("#map-title-left").text(nameL);
 
           if (bboxL) {
             const hL = mapHeightForBbox(bboxL, mapW);
-            document.getElementById("wms-img-l").setAttribute("width", mapW);
-            document.getElementById("wms-img-l").setAttribute("height", hL);
+            d3.select("#wms-img-l").attr("width", mapW).attr("height", hL);
             updateMap("l", buildWmsUrl(bboxL, dateStr, mapW, hL));
           }
 
@@ -1003,12 +989,14 @@
 
           const rowsL = byRegion.get(nameL) || [];
           renderNdviYearVsBaseline(rowsL, nameL, vizYear, vizMonth);
-          document.getElementById("share-year-note").textContent =
-            `NDVI (Normalized Difference Vegetation Index) is a satellite greenness index: higher values usually mean denser, healthier vegetation. Solid line: regional mean NDVI for each calendar month in ${vizYear}. Dashed line: for that same month of year, the average NDVI over ${baselineYearSpan}. Vertical rule: the month selected with the scrubber.`;
+          d3.select("#share-year-note").text(
+            `NDVI (Normalized Difference Vegetation Index) is a satellite greenness index: higher values usually mean denser, healthier vegetation. Solid line: regional mean NDVI for each calendar month in ${vizYear}. Dashed line: for that same month of year, the average NDVI over ${baselineYearSpan}. Vertical rule: the month selected with the scrubber.`
+          );
         }
 
-        document.getElementById("share-year-title").textContent =
-          `${vizYear} NDVI compared to the same-month average since ${DATA_FIRST_YEAR}`;
+        d3.select("#share-year-title").text(
+          `${vizYear} NDVI compared to the same-month average since ${DATA_FIRST_YEAR}`
+        );
         d3.select("#btn-play").text(`▶ Play From January (${vizYear})`);
         moveScrubberKnob(vizMonth);
         syncPlayButtons();
