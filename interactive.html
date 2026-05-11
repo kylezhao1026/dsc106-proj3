@@ -92,15 +92,31 @@
       opacity: 0.45;
       cursor: not-allowed;
     }
+    .month-scrubber-block {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
     .month-scrubber-host {
-      flex: 1 1 100%;
-      min-width: min(100%, 36rem);
+      width: 100%;
+      max-width: 42rem;
     }
     .month-scrubber-host svg {
       display: block;
       width: 100%;
       max-width: 42rem;
       height: auto;
+      margin: 0 auto;
+    }
+    .month-scrubber-hint {
+      margin: 0.5rem 0 0;
+      width: 100%;
+      max-width: 42rem;
+      text-align: center;
+      font-size: 0.9rem;
+      font-weight: 650;
+      color: var(--muted);
     }
     .stress-panel-time {
       margin-bottom: 0.85rem;
@@ -186,7 +202,6 @@
     #controls[data-view="one"] .only-compare-controls {
       display: none !important;
     }
-    .map-split-caption { font-size: 0.8rem; color: var(--muted); margin: 0.5rem 0 0; }
     .panel {
       background: #fff;
       border: none;
@@ -194,6 +209,10 @@
       padding: 1rem;
       overflow: hidden;
       box-shadow: 0 1px 3px rgba(15, 23, 42, 0.07);
+    }
+    /* NDVI year chart tooltips use position:fixed; allow any spill for shadows / hit area. */
+    .panel.panel-chart {
+      overflow: visible;
     }
     .panel h2 { margin: 0 0 0.75rem; font-size: 1.05rem; }
     .map-wrap {
@@ -310,9 +329,9 @@
       max-width: 100%;
     }
     .share-year-tooltip {
-      position: absolute;
+      position: fixed;
       pointer-events: none;
-      z-index: 20;
+      z-index: 200;
       padding: 0.5rem 0.7rem;
       background: #fff;
       border: none;
@@ -321,6 +340,9 @@
       font-size: 0.8rem;
       line-height: 1.5;
       min-width: 10rem;
+      max-width: min(22rem, calc(100vw - 16px));
+      box-sizing: border-box;
+      overflow-wrap: anywhere;
       visibility: hidden;
       opacity: 0;
       transition: opacity 0.08s ease;
@@ -395,11 +417,10 @@
       <div class="anim-controls" id="anim-controls"></div>
       <div class="stress-panel-time" style="border: none; padding: 0; margin: 0; width: 100%;">
         <div class="time-readout" id="time-readout"></div>
-        <div class="month-scrubber-host" id="month-scrubber-host" aria-label="Select month for stress assessment"></div>
-        <p class="share-heading" style="margin-top: 0.65rem;">Month scrubber (drag or tap)</p>
-        <p class="slider-meta" style="margin: 0;">
-          Drag the scrubber to pick a month. <strong>From January</strong> always replays the year from January; <strong>Resume</strong> continues from the current month after a pause (disabled in December or while playing).
-        </p>
+        <div class="month-scrubber-block">
+          <div class="month-scrubber-host" id="month-scrubber-host" aria-label="Select month for stress assessment"></div>
+          <p class="month-scrubber-hint">Drag or tap the scrubber to pick a month!</p>
+        </div>
       </div>
     </div>
 
@@ -411,7 +432,6 @@
             <img id="wms-img-l" alt="MODIS NDVI left region" width="400" height="400" />
             <span class="loading" id="map-loading-l">Loading map…</span>
           </div>
-          <p class="map-split-caption" id="map-caption-left">Updates with the month scrubber or animation controls.</p>
         </div>
         <div class="panel only-compare">
           <h2 id="map-title-right">NDVI map — right</h2>
@@ -419,7 +439,6 @@
             <img id="wms-img-r" alt="MODIS NDVI right region" width="400" height="400" />
             <span class="loading" id="map-loading-r">Loading map…</span>
           </div>
-          <p class="map-split-caption">Same month and year as the left map.</p>
         </div>
       </div>
       <div class="compare-row stress-row">
@@ -442,7 +461,7 @@
       </div>
       <div class="panel panel-chart">
         <div class="share-year-panel" style="margin: 0; padding: 0; border: none;">
-          <h2 id="share-year-title">NDVI vs. 20-year monthly average</h2>
+          <h2 id="share-year-title">NDVI compared to the same-month average since 2006</h2>
           <p class="share-year-note" id="share-year-note"></p>
           <div class="share-year-chart-wrap">
             <svg id="share-year-chart" viewBox="0 0 760 400" preserveAspectRatio="xMidYMid meet"></svg>

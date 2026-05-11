@@ -29,9 +29,38 @@
   };
 
   const BASELINE_YEAR_WINDOW = 20;
+  /** First year present in the project’s MODIS CSV/JSON (matches default GIBS fetch start). */
+  const DATA_FIRST_YEAR = 2006;
+
+  /** Years used for the dashed baseline label (up to 20 prior years, not before DATA_FIRST_YEAR). */
+  function baselineDisplayYearRange(selectedYear) {
+    const high = selectedYear - 1;
+    let low = Math.max(DATA_FIRST_YEAR, selectedYear - BASELINE_YEAR_WINDOW);
+    if (low > high) low = high;
+    return { low, high };
+  }
 
   const fmtPct = d3.format(".1f");
   const fmtNdvi = d3.format(".3f");
+
+  /** NDVI chart hover tips: viewport positioning so parent `overflow: hidden` does not clip them. */
+  function positionShareYearTooltip(tipEl, event, html) {
+    tipEl.innerHTML = html;
+    const pad = 12;
+    const margin = 8;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const tw = tipEl.offsetWidth || 160;
+    const th = tipEl.offsetHeight || 90;
+    let left = event.clientX + pad;
+    let top = event.clientY + pad;
+    if (left + tw > vw - margin) left = event.clientX - tw - pad;
+    if (top + th > vh - margin) top = event.clientY - th - pad;
+    left = Math.max(margin, Math.min(left, vw - tw - margin));
+    top = Math.max(margin, Math.min(top, vh - th - margin));
+    tipEl.style.left = `${left}px`;
+    tipEl.style.top = `${top}px`;
+  }
 
   /** Per-side: after first successful tile, skip blocking “Loading map…” overlay on updates. */
   const mapImageReady = { l: false, r: false };
@@ -194,7 +223,7 @@
     return new Date(year, month - 1, 1);
   }
 
-  /** Mean NDVI for each calendar month 1–12 from prior years (20-yr window ending year-1). */
+  /** Mean NDVI for each calendar month 1–12 from prior years (window ending year−1; see BASELINE_YEAR_WINDOW). */
   function baselineNdviByMonth(regionRows, selectedYear) {
     const lowYear = selectedYear - BASELINE_YEAR_WINDOW;
     return d3.range(1, 13).map((month) => {
@@ -327,6 +356,7 @@
       .attr("text-anchor", "middle")
       .text("Mean NDVI (decoded)");
 
+    const blRng = baselineDisplayYearRange(selectedYear);
     const leg = g.append("g").attr("transform", `translate(0,${ih + 48})`);
     leg.append("line").attr("x1", 0).attr("x2", 22).attr("y1", 2).attr("y2", 2).attr("stroke", VIZ.ndvi).attr("stroke-width", 2.5);
     leg.append("text")
@@ -350,29 +380,13 @@
       .attr("dominant-baseline", "middle")
       .attr("fill", VIZ.muted)
       .attr("font-size", 10)
-      .text(`Same-month avg (${selectedYear - BASELINE_YEAR_WINDOW}–${selectedYear - 1})`);
+      .text(`Same-month avg (${blRng.low}–${blRng.high})`);
 
-    const wrap = document.querySelector(".share-year-chart-wrap");
     const tipEl = document.getElementById("share-year-tooltip");
-    if (!wrap || !tipEl) return;
+    if (!tipEl) return;
     tipEl.classList.remove("is-visible");
     tipEl.setAttribute("aria-hidden", "true");
     tipEl.innerHTML = "";
-
-    const positionTip = (event, html) => {
-      tipEl.innerHTML = html;
-      const wr = wrap.getBoundingClientRect();
-      const tw = tipEl.offsetWidth || 160;
-      const th = tipEl.offsetHeight || 90;
-      let left = event.clientX - wr.left + 12;
-      let top = event.clientY - wr.top + 12;
-      if (left + tw > wrap.clientWidth - 6) left = event.clientX - wr.left - tw - 12;
-      if (top + th > wrap.clientHeight - 6) top = event.clientY - wr.top - th - 12;
-      left = Math.max(6, Math.min(left, wrap.clientWidth - tw - 6));
-      top = Math.max(6, Math.min(top, wrap.clientHeight - th - 6));
-      tipEl.style.left = `${left}px`;
-      tipEl.style.top = `${top}px`;
-    };
 
     const bandHalf = (x.step() * (1 - x.padding())) / 2 + 2;
     const showOneTip = (event, d) => {
@@ -385,7 +399,7 @@
         `<div class="tip-row"><span style="color:${VIZ.baseline}">Baseline</span><span>${bv}</span></div>`;
       tipEl.classList.add("is-visible");
       tipEl.setAttribute("aria-hidden", "false");
-      positionTip(event, html);
+      positionShareYearTooltip(tipEl, event, html);
     };
     g.selectAll(".hover-band")
       .data(points)
@@ -574,31 +588,16 @@
     };
     legItem(0, 2, VIZ.ndvi, null, 14, `${ell(labelL, 20)} · ${selectedYear}`);
     legItem(200, 2, VIZ.ndviR, null, 14, `${ell(labelR, 20)} · ${selectedYear}`);
-    legItem(0, 18, VIZ.baseline, "6 4", 14, `${ell(labelL, 16)} baseline`);
-    legItem(200, 18, VIZ.baselineR, "4 4", 14, `${ell(labelR, 16)} baseline`);
+    const br = baselineDisplayYearRange(selectedYear);
+    legItem(0, 18, VIZ.baseline, "6 4", 14, `${ell(labelL, 14)} ${br.low}–${br.high}`);
+    legItem(200, 18, VIZ.baselineR, "4 4", 14, `${ell(labelR, 14)} ${br.low}–${br.high}`);
 
-    const wrap = document.querySelector(".share-year-chart-wrap");
     const tipEl = document.getElementById("share-year-tooltip");
-    if (!wrap || !tipEl) return;
+    if (!tipEl) return;
 
     tipEl.classList.remove("is-visible");
     tipEl.setAttribute("aria-hidden", "true");
     tipEl.innerHTML = "";
-
-    const positionTip = (event, html) => {
-      tipEl.innerHTML = html;
-      const wr = wrap.getBoundingClientRect();
-      const tw = tipEl.offsetWidth || 180;
-      const th = tipEl.offsetHeight || 120;
-      let left = event.clientX - wr.left + 12;
-      let top = event.clientY - wr.top + 12;
-      if (left + tw > wrap.clientWidth - 6) left = event.clientX - wr.left - tw - 12;
-      if (top + th > wrap.clientHeight - 6) top = event.clientY - wr.top - th - 12;
-      left = Math.max(6, Math.min(left, wrap.clientWidth - tw - 6));
-      top = Math.max(6, Math.min(top, wrap.clientHeight - th - 6));
-      tipEl.style.left = `${left}px`;
-      tipEl.style.top = `${top}px`;
-    };
 
     const short = (s) => (s.length > 22 ? s.slice(0, 20) + "…" : s);
     const bandHalf = (x.step() * (1 - x.padding())) / 2 + 2;
@@ -613,7 +612,7 @@
         `<div class="tip-row"><span style="color:${VIZ.baselineR}">${short(labelR)} avg</span><span>${f(d.baseR)}</span></div>`;
       tipEl.classList.add("is-visible");
       tipEl.setAttribute("aria-hidden", "false");
-      positionTip(event, html);
+      positionShareYearTooltip(tipEl, event, html);
     };
     g.selectAll(".hover-band")
       .data(points)
@@ -723,10 +722,12 @@
       const yearSelect = d3.select("#year-select");
       yearSelect.selectAll("option").data(years).join("option").attr("value", (d) => d).text((d) => String(d));
 
-      const defaultYear = years.includes(2023) ? 2023 : years[years.length - 1];
+      const defaultYear = years.includes(2025) ? 2025 : years[years.length - 1];
       let vizYear = defaultYear;
       let vizMonth = 1;
       let playTimer = null;
+      /** True only after the user hits Pause while the month animation is running (enables Resume). */
+      let pausedMidPlayback = false;
       let scrubKnob = null;
       let scrubXLin = null;
 
@@ -742,7 +743,7 @@
         const playing = !!playTimer;
         d3.select("#btn-pause").property("disabled", !playing);
         d3.select("#btn-play").property("disabled", playing);
-        const canResume = !playing && vizMonth < 12;
+        const canResume = pausedMidPlayback && !playing && vizMonth < 12;
         d3.select("#btn-resume").property("disabled", !canResume);
       }
 
@@ -843,6 +844,7 @@
         const drag = d3
           .drag()
           .on("start", () => {
+            pausedMidPlayback = false;
             stopPlay();
             scrubKnob.style("cursor", "grabbing");
           })
@@ -862,6 +864,7 @@
             const { m, px } = snapX(xf);
             vizMonth = m;
             scrubKnob.attr("cx", px);
+            pausedMidPlayback = false;
             stopPlay();
             refresh();
           });
@@ -880,18 +883,21 @@
             const { m, px } = snapX(xf);
             vizMonth = m;
             scrubKnob.attr("cx", px);
+            pausedMidPlayback = false;
             stopPlay();
             refresh();
           });
       }
 
       function startPlayFromJanuary() {
+        pausedMidPlayback = false;
         stopPlay();
         vizMonth = 1;
         moveScrubberKnob(1);
         refresh();
         playTimer = d3.interval(() => {
           if (vizMonth >= 12) {
+            pausedMidPlayback = false;
             stopPlay();
             return;
           }
@@ -904,12 +910,14 @@
 
       function startResume() {
         stopPlay();
+        pausedMidPlayback = false;
         if (vizMonth >= 12) {
           syncPlayButtons();
           return;
         }
         playTimer = d3.interval(() => {
           if (vizMonth >= 12) {
+            pausedMidPlayback = false;
             stopPlay();
             return;
           }
@@ -928,6 +936,9 @@
 
         const mainGrid = document.getElementById("main-grid");
         vizYear = +yearSelect.property("value");
+        const blYr = baselineDisplayYearRange(vizYear);
+        const baselineYearSpan =
+          blYr.low === blYr.high ? String(blYr.low) : `${blYr.low}–${blYr.high}`;
         const dateStr = dateKey(vizYear, vizMonth);
         const mapW = compare ? MAP_WIDTH : Math.min(520, Math.round(MAP_WIDTH * 1.28));
 
@@ -939,8 +950,8 @@
           const bboxR = rowR?.bbox ?? bboxForRegion(nameR);
           updateReadoutCompare(nameL, nameR, vizYear, vizMonth, rowL, rowR);
           const monthLab = d3.timeFormat("%B %Y")(calendarDate(vizYear, vizMonth));
-          document.getElementById("stress-panel-title-l").textContent = `Stress — ${monthLab} · ${nameL}`;
-          document.getElementById("stress-panel-title-r").textContent = `Stress — ${monthLab} · ${nameR}`;
+          document.getElementById("stress-panel-title-l").textContent = `${nameL} Stress assessment — ${monthLab}`;
+          document.getElementById("stress-panel-title-r").textContent = `${nameR} Stress assessment — ${monthLab}`;
           document.getElementById("map-title-left").textContent = nameL;
           document.getElementById("map-title-right").textContent = nameR;
 
@@ -970,12 +981,12 @@
           const rowsR = byRegion.get(nameR) || [];
           renderNdviTwoRegionCompare(rowsL, rowsR, nameL, nameR, vizYear, vizMonth, same);
           document.getElementById("share-year-note").textContent =
-            `Left / right: solid lines = ${vizYear} mean NDVI; dashed = same-month baseline (${vizYear - BASELINE_YEAR_WINDOW}–${vizYear - 1}). Vertical rule = selected month.`;
+            `NDVI (Normalized Difference Vegetation Index) is a satellite greenness index: higher values usually mean denser, healthier vegetation. Solid lines: each region's mean NDVI for every calendar month in ${vizYear}. Dashed lines: for that same month of year, the average NDVI over ${baselineYearSpan}. Vertical rule: the month selected with the scrubber.`;
         } else {
           if (mainGrid) mainGrid.style.removeProperty("--map-compare-h");
           updateReadoutSingle(nameL, vizYear, vizMonth, rowL);
           const monthLab = d3.timeFormat("%B %Y")(calendarDate(vizYear, vizMonth));
-          document.getElementById("stress-panel-title-l").textContent = `Stress — ${monthLab} · ${nameL}`;
+          document.getElementById("stress-panel-title-l").textContent = `${nameL} Stress assessment — ${monthLab}`;
           document.getElementById("map-title-left").textContent = nameL;
 
           if (bboxL) {
@@ -993,16 +1004,18 @@
           const rowsL = byRegion.get(nameL) || [];
           renderNdviYearVsBaseline(rowsL, nameL, vizYear, vizMonth);
           document.getElementById("share-year-note").textContent =
-            `Solid = regional mean NDVI each month in ${vizYear}; dashed = same-month average NDVI over years ${vizYear - BASELINE_YEAR_WINDOW}–${vizYear - 1}. Vertical rule = selected month.`;
+            `NDVI (Normalized Difference Vegetation Index) is a satellite greenness index: higher values usually mean denser, healthier vegetation. Solid line: regional mean NDVI for each calendar month in ${vizYear}. Dashed line: for that same month of year, the average NDVI over ${baselineYearSpan}. Vertical rule: the month selected with the scrubber.`;
         }
 
-        document.getElementById("share-year-title").textContent = `NDVI vs. 20-year monthly average (${vizYear})`;
-        d3.select("#btn-play").text(`From January (${vizYear})`);
+        document.getElementById("share-year-title").textContent =
+          `${vizYear} NDVI compared to the same-month average since ${DATA_FIRST_YEAR}`;
+        d3.select("#btn-play").text(`▶ Play From January (${vizYear})`);
         moveScrubberKnob(vizMonth);
         syncPlayButtons();
       }
 
       function onRegionOrYearChange() {
+        pausedMidPlayback = false;
         stopPlay();
         ensureDistinctRegions();
         buildMonthScrubber();
@@ -1010,6 +1023,7 @@
       }
 
       function onViewModeChange() {
+        pausedMidPlayback = false;
         stopPlay();
         ensureDistinctRegions();
         buildMonthScrubber();
@@ -1025,7 +1039,7 @@
         .append("button")
         .attr("type", "button")
         .attr("id", "btn-play")
-        .text("From January (…)")
+        .text("▶ Play From January (…)")
         .on("click", startPlayFromJanuary);
       animHost
         .append("button")
@@ -1033,7 +1047,10 @@
         .attr("id", "btn-pause")
         .text("Pause")
         .property("disabled", true)
-        .on("click", stopPlay);
+        .on("click", () => {
+          if (playTimer) pausedMidPlayback = true;
+          stopPlay();
+        });
       animHost
         .append("button")
         .attr("type", "button")
