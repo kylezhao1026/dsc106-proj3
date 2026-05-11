@@ -11,6 +11,8 @@
       --muted: #444;
       --border: #e5e7eb;
       --card: #fff;
+      /* Same max width as the interactive iframe (`.viz-embed`) */
+      --page-wide: min(96vw, 88rem);
     }
     * { box-sizing: border-box; }
     body {
@@ -24,29 +26,48 @@
     header {
       background: linear-gradient(145deg, #1a2e2a 0%, #0f4a42 45%, #147a6c 100%);
       color: #ecfdf5;
-      padding: 2.5rem 1.25rem 2rem;
+      padding: 2.5rem max(1.25rem, env(safe-area-inset-left)) 2rem max(1.25rem, env(safe-area-inset-right));
     }
     header h1 {
       margin: 0 0 0.75rem;
       font-size: 1.65rem;
       font-weight: 650;
       letter-spacing: -0.02em;
-      max-width: 52rem;
+      max-width: var(--page-wide);
       margin-left: auto;
       margin-right: auto;
     }
     .lead {
       margin: 0 auto;
-      max-width: 52rem;
+      max-width: var(--page-wide);
       font-size: 1.08rem;
       opacity: 0.95;
       border-left: 4px solid #5eead4;
       padding-left: 1rem;
     }
     main {
-      max-width: 52rem;
+      max-width: var(--page-wide);
       margin: 0 auto;
-      padding: 2rem 1.25rem 3rem;
+      padding: 2rem max(1.25rem, env(safe-area-inset-left)) 3rem max(1.25rem, env(safe-area-inset-right));
+    }
+    .site-nav {
+      margin: 0 0 1.75rem;
+      padding: 0 0 1rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem 1.25rem;
+      font-size: 0.95rem;
+    }
+    .site-nav a {
+      color: var(--text);
+      font-weight: 600;
+      text-decoration: none;
+    }
+    .site-nav a:hover { text-decoration: underline; }
+    .site-nav a[aria-current="page"] {
+      color: #147a6c;
+      pointer-events: none;
     }
     section {
       margin-bottom: 3rem;
@@ -86,40 +107,13 @@
       font-size: 0.95rem;
     }
     .methods ul { margin: 0.5rem 0 0; padding-left: 1.2rem; }
-    footer {
-      text-align: center;
-      padding: 2rem 1rem;
-      font-size: 0.88rem;
-      color: #64748b;
-      border-top: 1px solid var(--border);
-    }
-    /* Full-bleed interactive block (wider than main column) */
-    #interactive {
-      width: 100vw;
-      margin-left: calc(50% - 50vw);
-      padding-left: max(1.25rem, env(safe-area-inset-left));
-      padding-right: max(1.25rem, env(safe-area-inset-right));
-      box-sizing: border-box;
-    }
-    #interactive > h2,
-    #interactive > p {
-      max-width: 52rem;
-      margin-left: auto;
-      margin-right: auto;
-    }
-    #interactive > h2 {
-      padding-left: 0;
-      padding-right: 0;
-    }
     .viz-embed {
       margin-top: 0.75rem;
       border: 1px solid var(--border);
       border-radius: 10px;
       overflow: hidden;
       background: #fff;
-      max-width: min(96vw, 88rem);
-      margin-left: auto;
-      margin-right: auto;
+      width: 100%;
     }
     .viz-embed iframe {
       display: block;
@@ -139,6 +133,11 @@
   </header>
 
   <main>
+    <nav class="site-nav" aria-label="Site">
+      <a href="index.html" aria-current="page">Home</a>
+      <a href="exploration.html">Exploratory visualizations</a>
+    </nav>
+
     <section id="methods">
       <h2>Data &amp; methods</h2>
       <div class="methods">
@@ -156,124 +155,12 @@
       </div>
     </section>
 
-    <section id="series">
-      <h2>Regional mean NDVI over time</h2>
-      <p>
-        Where and when NDVI is higher or lower within each region: all regions on one axis so you can
-        compare seasonal timing and amplitude.
-      </p>
-      <div class="card">
-        <figure>
-          <img
-            src="figures/modis_ndvi_regional_series.png"
-            alt="Multi-line chart of regional mean NDVI by month for five regions"
-            width="1400"
-            height="800"
-            loading="lazy"
-          />
-          <figcaption>
-            <strong>Regional mean NDVI varies by month.</strong>
-            Each point is one month’s regional mean from the MODIS composite; colors distinguish regions.
-          </figcaption>
-        </figure>
-      </div>
-    </section>
-
-    <section id="distribution">
-      <h2>NDVI distribution by region</h2>
-      <p>
-        How spread out monthly NDVI is within each region—useful for comparing variability and typical ranges.
-      </p>
-      <div class="card">
-        <figure>
-          <img
-            src="figures/modis_ndvi_distribution_by_region.png"
-            alt="Box plots of monthly regional mean NDVI for five regions"
-            width="1200"
-            height="700"
-            loading="lazy"
-          />
-          <figcaption>
-            <strong>NDVI distribution varies extensively across regions.</strong>
-            Y-axis: monthly MODIS regional means; X-axis: region (multi-line labels).
-          </figcaption>
-        </figure>
-      </div>
-    </section>
-
-    <section id="stress-ndvi">
-      <h2>Stress vs. regional NDVI</h2>
-      <p>
-        Each point is one region-month. Lower mean NDVI tends to align with more pixels flagged as stressed,
-        linking the “where / when” question to stress diagnostics.
-      </p>
-      <div class="card">
-        <figure>
-          <img
-            src="figures/modis_ndvi_stress_vs_ndvi.png"
-            alt="Scatter plot of stress share versus regional mean NDVI colored by region"
-            width="1200"
-            height="780"
-            loading="lazy"
-          />
-          <figcaption>
-            <strong>Higher vegetation stress is correlated with lower regional NDVI.</strong>
-            Stress share is the percentage of vegetated pixels below the stress threshold.
-          </figcaption>
-        </figure>
-      </div>
-    </section>
-
-    <section id="heatmap">
-      <h2>Mean NDVI heatmap (where &amp; when)</h2>
-      <p>
-        Region × month grid: quick read of which areas look greener or browner in which months.
-      </p>
-      <div class="card">
-        <figure>
-          <img
-            src="figures/modis_ndvi_stress_health_heatmap.png"
-            alt="Heatmap of mean NDVI by region row and month column"
-            width="1400"
-            height="700"
-            loading="lazy"
-          />
-          <figcaption>
-            <strong>MODIS Terra monthly NDVI heatmap</strong> (Aqua fill for April&nbsp;2025 where Terra is missing).
-            Color shows approximate mean NDVI from the GIBS colormap.
-          </figcaption>
-        </figure>
-      </div>
-    </section>
-
-    <section id="shares">
-      <h2>Stress and high-health shares over time</h2>
-      <p>
-        When stressed pixels dominate versus when high-health pixels dominate—directly tied to the project’s
-        stress vs. high-health framing.
-      </p>
-      <div class="card">
-        <figure>
-          <img
-            src="figures/modis_ndvi_stress_health_lines.png"
-            alt="Line charts of stress share and high health share over months by region"
-            width="1200"
-            height="760"
-            loading="lazy"
-          />
-          <figcaption>
-            <strong>Share of vegetated pixels showing stress or high health.</strong>
-            Top: stress share (%); bottom: high-health share (%).
-          </figcaption>
-        </figure>
-      </div>
-    </section>
-
     <section id="interactive">
-      <h2>Interactive exploration progress </h2>
+      <h2>Interactive visualization</h2>
       <p>
         Pick a region and month to see MODIS NDVI from NASA GIBS alongside the same regional mean NDVI, stress
-        share, and high-health share!
+        share, and high-health share. For static exploratory charts (time series, distributions, heatmap, etc.),
+        see <a href="exploration.html">Exploratory visualizations</a>.
       </p>
       <div class="viz-embed">
         <iframe

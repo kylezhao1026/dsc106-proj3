@@ -302,9 +302,8 @@
       color: var(--muted);
     }
     .err { color: #a84820; font-size: 0.9rem; }
-    footer { padding: 1rem 1.25rem 2rem; font-size: 0.8rem; color: var(--muted); text-align: center; }
     body.embed header,
-    body.embed footer { display: none; }
+    body.embed .site-nav-interactive { display: none; }
     body.embed .wrap {
       padding-top: 0.75rem;
       padding-bottom: 1rem;
@@ -368,6 +367,23 @@
       font-variant-numeric: tabular-nums;
       color: var(--text);
     }
+    .site-nav-interactive {
+      max-width: min(96rem, 100%);
+      margin: 0 auto;
+      padding: 0.65rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      background: #f8fafc;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem 1.25rem;
+      font-size: 0.9rem;
+    }
+    .site-nav-interactive a {
+      font-weight: 600;
+      color: var(--text);
+      text-decoration: none;
+    }
+    .site-nav-interactive a:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
@@ -376,6 +392,10 @@
       document.body.classList.add("embed");
     }
   </script>
+  <nav class="site-nav-interactive" aria-label="Site">
+    <a href="index.html">Project home</a>
+    <a href="exploration.html">Exploratory visualizations</a>
+  </nav>
   <header>
     <h1>Interactive MODIS NDVI &amp; vegetation stress</h1>
     <p>
@@ -471,10 +491,6 @@
       </div>
     </div>
   </div>
-
-  <footer>
-    WMS endpoint: gibs.earthdata.nasa.gov · Same thresholds as <code>scripts/modis_ndvi_stress_health.py</code>
-  </footer>
 
   <script src="js/interactive.js"></script>
 </body>
