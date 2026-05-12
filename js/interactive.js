@@ -32,7 +32,7 @@
 
   /** Shared copy for the NDVI year chart footnote (ties chart to map decode). */
   const NDVI_CHART_NOTE_OPEN =
-    "NDVI (Normalized Difference Vegetation Index) compares near-infrared and red light from satellites—higher values mean more vigorous green vegetation (roughly 0 to 1). Regional means here use the same NDVI decoded from the GIBS map palette as the maps above. ";
+    "NDVI (Normalized Difference Vegetation Index) compares near-infrared and red light from satellites—higher values mean more vigorous green vegetation (roughly 0 to 1). Regional means here use the same NDVI decoded from the GIBS map palette as the maps above.";
 
   /** Years used for the dashed baseline label (up to 20 prior years, not before DATA_FIRST_YEAR). */
   function baselineDisplayYearRange(selectedYear) {
@@ -782,6 +782,8 @@
       let vizYear = defaultYear;
       let vizMonth = 1;
       let playTimer = null;
+      /** Last map framing identity per side; when unchanged (same month excluded), tile swaps keep d3 zoom. */
+      let prevMapZoomCtx = { l: null, r: null };
       /** True only after the user hits Pause while the month animation is running (enables Resume). */
       let pausedMidPlayback = false;
       let scrubKnob = null;
@@ -950,7 +952,7 @@
         stopPlay();
         vizMonth = 1;
         moveScrubberKnob(1);
-        /* Assign timer before refresh so keepMapZoom sees playTimer and map zoom is not reset on January frame. */
+        refresh();
         playTimer = d3.interval(() => {
           if (vizMonth >= 12) {
             pausedMidPlayback = false;
@@ -961,7 +963,6 @@
           moveScrubberKnob(vizMonth);
           refresh();
         }, 880);
-        refresh();
         syncPlayButtons();
       }
 
@@ -985,6 +986,11 @@
         syncPlayButtons();
       }
 
+      function mapZoomCtxKey(isCompare, regionName, year, mapW, nativeH, bboxStr) {
+        if (!bboxStr || !regionName || !nativeH) return null;
+        return `${isCompare ? "c" : "1"}|${regionName}|${year}|${mapW}|${nativeH}|${bboxStr}`;
+      }
+
       function refresh() {
         applyViewModeLayout();
         const compare = isCompareMode();
@@ -998,7 +1004,6 @@
           blYr.low === blYr.high ? String(blYr.low) : `${blYr.low}–${blYr.high}`;
         const dateStr = dateKey(vizYear, vizMonth);
         const mapW = compare ? MAP_WIDTH : Math.min(520, Math.round(MAP_WIDTH * 1.28));
-        const keepMapZoom = !!playTimer;
 
         const rowL = findRow(nameL, vizYear, vizMonth);
         const bboxL = rowL?.bbox ?? bboxForRegion(nameL);
@@ -1015,6 +1020,10 @@
 
           const hL = bboxL ? mapHeightForBbox(bboxL, mapW) : 0;
           const hR = bboxR ? mapHeightForBbox(bboxR, mapW) : 0;
+          const keyL = mapZoomCtxKey(true, nameL, vizYear, mapW, hL, bboxL);
+          const keyR = mapZoomCtxKey(true, nameR, vizYear, mapW, hR, bboxR);
+          const keepL = !!keyL && mapImageReady.l && prevMapZoomCtx.l === keyL;
+          const keepR = !!keyR && mapImageReady.r && prevMapZoomCtx.r === keyR;
           const mapCompareH =
             hL > 0 && hR > 0 ? Math.min(hL, hR) : Math.max(hL, hR, 200);
           mainGridSel.style("--map-compare-h", `${mapCompareH}px`);
@@ -1028,12 +1037,14 @@
 
           if (bboxL) {
             d3.select("#wms-img-l").attr("width", mapW).attr("height", hL);
-            updateMap("l", buildWmsUrl(bboxL, dateStr, mapW, hL), keepMapZoom);
+            updateMap("l", buildWmsUrl(bboxL, dateStr, mapW, hL), keepL);
           }
           if (bboxR) {
             d3.select("#wms-img-r").attr("width", mapW).attr("height", hR);
-            updateMap("r", buildWmsUrl(bboxR, dateStr, mapW, hR), keepMapZoom);
+            updateMap("r", buildWmsUrl(bboxR, dateStr, mapW, hR), keepR);
           }
+          prevMapZoomCtx.l = bboxL ? keyL : null;
+          prevMapZoomCtx.r = bboxR ? keyR : null;
 
           renderStats(rowHasDecodeMetrics(rowL) ? rowL : null, "#stats-l");
           renderStats(rowHasDecodeMetrics(rowR) ? rowR : null, "#stats-r");
@@ -1043,9 +1054,7 @@
           const rowsL = byRegion.get(nameL) || [];
           const rowsR = byRegion.get(nameR) || [];
           renderNdviTwoRegionCompare(rowsL, rowsR, nameL, nameR, vizYear, vizMonth, same);
-          d3.select("#share-year-note").text(
-            `${NDVI_CHART_NOTE_OPEN}Solid lines: each region's mean NDVI for every calendar month in ${vizYear}. Dashed lines: for that same month of year, the average NDVI over ${baselineYearSpan}. Vertical rule: the month selected with the scrubber.`
-          );
+          d3.select("#share-year-note").text(NDVI_CHART_NOTE_OPEN);
         } else {
           mainGridSel.style("--map-compare-h", null);
           d3.select("#map-zoom-viewport-l").style("aspect-ratio", null).style("height", null);
@@ -1057,12 +1066,17 @@
 
           if (bboxL) {
             const hL = mapHeightForBbox(bboxL, mapW);
+            const keyL = mapZoomCtxKey(false, nameL, vizYear, mapW, hL, bboxL);
+            const keepL = !!keyL && mapImageReady.l && prevMapZoomCtx.l === keyL;
             d3.select("#map-zoom-viewport-l").style("height", null).style("aspect-ratio", `${mapW} / ${hL}`);
             d3.select("#wms-img-l").attr("width", mapW).attr("height", hL);
-            updateMap("l", buildWmsUrl(bboxL, dateStr, mapW, hL), keepMapZoom);
+            updateMap("l", buildWmsUrl(bboxL, dateStr, mapW, hL), keepL);
+            prevMapZoomCtx.l = keyL;
           } else {
             d3.select("#map-zoom-viewport-l").style("aspect-ratio", null).style("height", null);
+            prevMapZoomCtx.l = null;
           }
+          prevMapZoomCtx.r = null;
 
           renderStats(rowHasDecodeMetrics(rowL) ? rowL : null, "#stats-l");
           renderShareBar(rowHasDecodeMetrics(rowL) ? rowL : null, "#share-bar-l");
@@ -1071,9 +1085,7 @@
 
           const rowsL = byRegion.get(nameL) || [];
           renderNdviYearVsBaseline(rowsL, nameL, vizYear, vizMonth);
-          d3.select("#share-year-note").text(
-            `${NDVI_CHART_NOTE_OPEN}Solid line: regional mean NDVI for each calendar month in ${vizYear}. Dashed line: for that same month of year, the average NDVI over ${baselineYearSpan}. Vertical rule: the month selected with the scrubber.`
-          );
+          d3.select("#share-year-note").text(NDVI_CHART_NOTE_OPEN);
         }
 
         d3.select("#share-year-title").text(

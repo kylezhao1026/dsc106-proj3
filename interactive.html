@@ -19,8 +19,6 @@
       --healthy: #2a9483;
       --ndvi-line: #2a75ad;
       --viz-sep: #cbd5e1;
-      /* Map letterbox / transparent WMS padding — keep viewport + surface aligned with .map-wrap */
-      --map-frame-bg: #0a120e;
     }
     * { box-sizing: border-box; }
     body {
@@ -219,7 +217,7 @@
     .panel h2 { margin: 0 0 0.75rem; font-size: 1.05rem; }
     .map-wrap {
       position: relative;
-      background: var(--map-frame-bg);
+      background: #0a120e;
       border-radius: 8px;
       min-height: 120px;
       width: 100%;
@@ -234,7 +232,6 @@
       border-radius: 6px;
       touch-action: none;
       line-height: 0;
-      background: var(--map-frame-bg);
     }
     #main-grid[data-mode="compare"] .maps-row .map-zoom-viewport {
       height: var(--map-compare-h, 280px);
@@ -247,7 +244,6 @@
       height: 100%;
       transform-origin: 0 0;
       will-change: transform;
-      background: var(--map-frame-bg);
     }
     .map-zoom-surface img {
       display: block;
@@ -277,7 +273,7 @@
       cursor: pointer;
     }
     .map-zoom-reset:hover {
-      background: rgba(6, 12, 10, 0.92);
+      background: rgba(30, 41, 59, 0.9);
       color: #fff;
     }
     #main-grid[data-mode="compare"] .maps-row > .panel {
@@ -316,6 +312,14 @@
       pointer-events: none;
     }
     .map-wrap:has(img.loaded) .loading { display: none; }
+    /* Caption under map tiles (full width in multi-column map row). */
+    .maps-row.maps-row-legend .map-zoom-hint {
+      grid-column: 1 / -1;
+      margin: 0.15rem 0 0;
+      font-size: 0.72rem;
+      line-height: 1.45;
+      color: var(--muted);
+    }
     /* GIBS MODIS_L3_NDVI colormap–inspired scale (approximate smooth gradient for legend only). */
     @media (min-width: 900px) {
       .maps-row.maps-row-legend .ndvi-map-legend-span {
@@ -504,7 +508,7 @@
       matched to the nearest palette color to estimate NDVI for summaries).
       Data tables come from <code>data/modis_ndvi_region_month.json</code>. Use <strong>View</strong> for one region
       or compare two; use the month scrubber or play controls for the selected year.
-      <strong>Maps:</strong> scroll or pinch to zoom, drag to pan when zoomed, then use <strong>Reset zoom</strong> to fit the tile again (zoom resets when you change region, year, or month by hand; it is kept while <strong>Play</strong> / <strong>Resume</strong> advances months).
+      <strong>Maps:</strong> scroll or pinch to zoom, drag to pan when zoomed, then use <strong>Reset zoom</strong> to fit the tile again (zoom is kept when you change <strong>month</strong> or during <strong>Play</strong> / <strong>Resume</strong>; it resets when you change <strong>region</strong>, <strong>year</strong>, or <strong>View</strong> one/compare).
       Map tiles: GIBS WMS <code>MODIS_Terra_L3_NDVI_Monthly</code>; <code>MODIS_Aqua_L3_NDVI_Monthly</code> only for
       <code>2025-04-01</code> when Terra has no tile.
       <strong>Stress</strong> = share of pixels with decoded NDVI &lt; 0.30; <strong>high health</strong> = NDVI ≥ 0.60.
@@ -576,12 +580,14 @@
             <span class="loading" id="map-loading-r">Loading map…</span>
           </div>
         </div>
+        <p class="map-zoom-hint">
+          <strong>Maps:</strong> scroll or pinch on a map to zoom in; drag to pan when zoomed.
+          Use the <strong>Reset zoom</strong> button on the bottom right of each map to fit the full tile again.
+        </p>
         <div class="ndvi-map-legend-span" aria-label="GIBS NDVI colormap scale">
           <p class="ndvi-legend-title">Map colors → NDVI (GIBS palette)</p>
           <p class="ndvi-legend-lead">
-            Brown and tan tones are low NDVI (little green vegetation); yellow–greens are moderate; deep greens are
-            high NDVI (dense canopy). This strip is a smoothed guide to the official discrete
-            <a href="https://gibs.earthdata.nasa.gov/colormaps/v1.3/MODIS_L3_NDVI.xml">MODIS_L3_NDVI</a> colormap.
+            Brown and tan tones show low NDVI (little green vegetation), yellow–greens are moderate, and deep greens are high NDVI (dense canopy).
           </p>
           <div class="ndvi-gibs-gradient" role="presentation"></div>
           <div class="ndvi-gibs-ticks" aria-hidden="true">

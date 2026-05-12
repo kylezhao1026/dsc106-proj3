@@ -166,20 +166,18 @@
     </section>
 
     <section id="writeup">
-      <h2>Write up</h2>
+      <h2>Write-up</h2>
       <p>
-        <strong>NDVI</strong> summarizes vegetation greenness from space: higher values mean more vigorous leaf
-        cover in that pixel’s month, and lower values mean sparse, stressed, or non-vegetated surfaces. In this
-        project, each map tile is already colorized by NASA’s GIBS palette; we match those colors back to numeric
-        NDVI bins to compute regional means and stress shares, so what you see on the map and what you read in the
-        charts describe the same signal at different scales.
+        I chose my visual encodings and interaction techniques to make changes in vegetation health easy to compare across regions and over time. The NDVI maps use the MODIS color palette because it provides a clear gradient between low and high vegetation health, allowing users to quickly identify areas of stress and healthy growth. We also made it possible to zoom and pan on each map so people can magnify smaller areas and analyze specific sub-regions. I paired the maps with summary statistic tiles and stacked percentage bars so users could understand both the spatial distribution and the overall regional trends simultaneously. For temporal analysis, I used interactive line charts with hover tooltips, scrubbers, and playback controls so users could explore monthly NDVI patterns and compare them against historical baselines in a more dynamic and intuitive way. The month scrubber and playback controls make seasonal trends much easier to observe because users can watch vegetation conditions transition month by month instead of mentally comparing separate static images. Hover tooltips on the NDVI charts also allow readers to quickly inspect exact values and compare them against historical baselines without cluttering the visualization with too many labels. I also kept color blindness in mind and avoided a red–green color scheme for the charts and stacked percentage bars, choosing a more color-blind-friendly alternative (for example orange for stress and teal/blue for healthy) alongside the NASA palette on the maps.
       </p>
       <p>
-        Monthly Terra NDVI composites (with Aqua only where Terra has no tile) let us compare five regions through
-        mean greenness, stress share, and high-health share across the year. The exploratory figures summarize how
-        seasonal timing and variability differ by region; the interactive view connects those statistics to the
-        GIBS map for any month you choose. Together they address where and when vegetation appears healthier versus
-        where more pixels fall below the stress threshold—and how that relates to regional mean NDVI.
+        I considered several alternative designs before arriving at these choices. For example, I thought about using only a slider for month selection, but that would not feel significantly different from viewing 12 separate static charts. The play bar instead allows users to observe month-to-month transitions and better understand seasonal progression over time. I also considered pie charts for displaying vegetation health categories, but stacked bars made percentage comparisons more accurate and easier to interpret. For the comparison view, I explored placing both regions on a single map, but side-by-side maps reduced visual clutter and made regional differences more noticeable.         Overall, I selected these encodings and interactions because they balanced clarity, comparison, and ease of exploration while helping users connect spatial patterns with long-term vegetation trends.
+      </p>
+      <p>
+        Our development process was very collaborative. At the start of the project, each of us created two exploratory visualizations to help investigate our research question and better understand the NDVI data before designing the final interactive visualization. Kyle mainly focused on building the base of the interactive visualization by collecting and organizing the NDVI data from the past 20 years and creating the first rendered version for the checkpoint submission. Philip helped develop the stacked bar chart for vegetation health comparison and later worked on the side-by-side comparison mode for viewing two regions at once. Elyse spent a lot of time debugging the checkpoint version and later added the play feature along with additional summary statistic charts to improve the temporal exploration.
+      </p>
+      <p>
+        Overall, we estimate that we spent around 10–20 people-hours developing the application. We did not strictly track our time since a lot of the coding and debugging was done together in person. The parts that took the longest were making sure all of the interactive components updated correctly together and debugging issues with the comparison mode and playback features.
       </p>
     </section>
 
