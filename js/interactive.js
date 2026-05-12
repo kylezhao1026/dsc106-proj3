@@ -68,6 +68,27 @@
   /** Per-side: after first successful tile, skip blocking “Loading map…” overlay on updates. */
   const mapImageReady = { l: false, r: false };
 
+  /**
+   * WMS GetMap URLs are already unique (TIME, BBOX, dimensions). Avoid cache-busting query params so
+   * the browser can reuse tiles when scrubbing or replaying months — that keeps the map closer to the scrubber.
+   */
+  const prefetchedTileUrls = new Set();
+  const PREFETCH_URL_CAP = 180;
+  function prefetchTileUrl(url) {
+    if (!url || prefetchedTileUrls.has(url)) return;
+    if (prefetchedTileUrls.size >= PREFETCH_URL_CAP) {
+      const drop = prefetchedTileUrls.values().next().value;
+      prefetchedTileUrls.delete(drop);
+    }
+    prefetchedTileUrls.add(url);
+    const im = new Image();
+    im.decoding = "async";
+    im.onload = im.onerror = () => {
+      /* keep set entry: avoids re-prefetching the same URL in a tight loop */
+    };
+    im.src = url;
+  }
+
   function wmsLayerForTimeIso(timeIso) {
     return timeIso === "2025-04-01" ? LAYER_AQUA : LAYER_TERRA;
   }
@@ -689,7 +710,6 @@
     const loading = d3.select(`#map-loading-${side}`);
     if (img.empty() || loading.empty()) return;
     const imgNode = img.node();
-    const urlBusted = url + (url.includes("?") ? "&" : "?") + "_cb=" + Date.now();
 
     imgNode.onload = () => {
       img.classed("loaded", true);
@@ -711,7 +731,7 @@
       loading.style("display", "block");
       loading.text("Loading map…");
     }
-    img.attr("src", urlBusted);
+    img.attr("src", url);
   }
 
   d3.json(DATA_URL)
@@ -1055,6 +1075,16 @@
           const rowsR = byRegion.get(nameR) || [];
           renderNdviTwoRegionCompare(rowsL, rowsR, nameL, nameR, vizYear, vizMonth, same);
           d3.select("#share-year-note").text(NDVI_CHART_NOTE_OPEN);
+
+          const pfMonths = [];
+          if (vizMonth < 12) pfMonths.push(vizMonth + 1);
+          if (vizMonth > 1) pfMonths.push(vizMonth - 1);
+          setTimeout(() => {
+            for (const m of pfMonths) {
+              if (bboxL) prefetchTileUrl(buildWmsUrl(bboxL, dateKey(vizYear, m), mapW, hL));
+              if (bboxR) prefetchTileUrl(buildWmsUrl(bboxR, dateKey(vizYear, m), mapW, hR));
+            }
+          }, 0);
         } else {
           mainGridSel.style("--map-compare-h", null);
           d3.select("#map-zoom-viewport-l").style("aspect-ratio", null).style("height", null);
@@ -1072,6 +1102,15 @@
             d3.select("#wms-img-l").attr("width", mapW).attr("height", hL);
             updateMap("l", buildWmsUrl(bboxL, dateStr, mapW, hL), keepL);
             prevMapZoomCtx.l = keyL;
+
+            const pfMonths = [];
+            if (vizMonth < 12) pfMonths.push(vizMonth + 1);
+            if (vizMonth > 1) pfMonths.push(vizMonth - 1);
+            setTimeout(() => {
+              for (const m of pfMonths) {
+                prefetchTileUrl(buildWmsUrl(bboxL, dateKey(vizYear, m), mapW, hL));
+              }
+            }, 0);
           } else {
             d3.select("#map-zoom-viewport-l").style("aspect-ratio", null).style("height", null);
             prevMapZoomCtx.l = null;

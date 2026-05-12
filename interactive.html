@@ -561,7 +561,7 @@
           <div class="map-wrap">
             <div class="map-zoom-viewport" id="map-zoom-viewport-l" aria-label="NDVI map zoom">
               <div class="map-zoom-surface" id="map-zoom-surface-l">
-                <img id="wms-img-l" alt="MODIS NDVI left region" width="400" height="400" />
+                <img id="wms-img-l" alt="MODIS NDVI left region" width="400" height="400" decoding="async" fetchpriority="high" />
               </div>
             </div>
             <button type="button" class="map-zoom-reset" id="map-zoom-reset-l">Reset zoom</button>
@@ -573,7 +573,7 @@
           <div class="map-wrap">
             <div class="map-zoom-viewport" id="map-zoom-viewport-r" aria-label="NDVI map zoom">
               <div class="map-zoom-surface" id="map-zoom-surface-r">
-                <img id="wms-img-r" alt="MODIS NDVI right region" width="400" height="400" />
+                <img id="wms-img-r" alt="MODIS NDVI right region" width="400" height="400" decoding="async" fetchpriority="high" />
               </div>
             </div>
             <button type="button" class="map-zoom-reset" id="map-zoom-reset-r">Reset zoom</button>
