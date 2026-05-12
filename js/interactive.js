@@ -30,6 +30,10 @@
   /** First year present in the project’s MODIS CSV/JSON (matches default GIBS fetch start). */
   const DATA_FIRST_YEAR = 2006;
 
+  /** Shared copy for the NDVI year chart footnote (ties chart to map decode). */
+  const NDVI_CHART_NOTE_OPEN =
+    "NDVI (Normalized Difference Vegetation Index) compares near-infrared and red light from satellites—higher values mean more vigorous green vegetation (roughly 0 to 1). Regional means here use the same NDVI decoded from the GIBS map palette as the maps above. ";
+
   /** Years used for the dashed baseline label (up to 20 prior years, not before DATA_FIRST_YEAR). */
   function baselineDisplayYearRange(selectedYear) {
     const high = selectedYear - 1;
@@ -620,7 +624,67 @@
       });
   }
 
-  function updateMap(side, url) {
+  /** d3.zoom per map side (installed once). */
+  const mapZoomBehavior = { l: null, r: null };
+
+  function mapZoomTransformCss(t) {
+    return `translate(${t.x}px,${t.y}px) scale(${t.k})`;
+  }
+
+  function resizeMapZoomExtent(side) {
+    const z = mapZoomBehavior[side];
+    const vp = d3.select(`#map-zoom-viewport-${side}`);
+    if (!z || vp.empty()) return;
+    const el = vp.node();
+    if (!el) return;
+    const w = el.clientWidth || 0;
+    const h = el.clientHeight || 0;
+    if (w > 0 && h > 0) z.extent([[0, 0], [w, h]]);
+  }
+
+  function resetMapZoomTransform(side) {
+    const z = mapZoomBehavior[side];
+    const vp = d3.select(`#map-zoom-viewport-${side}`);
+    const surface = d3.select(`#map-zoom-surface-${side}`);
+    if (!surface.empty()) surface.style("transform", mapZoomTransformCss(d3.zoomIdentity));
+    if (!vp.empty() && z) vp.call(z.transform, d3.zoomIdentity);
+  }
+
+  function setupMapZoomForSide(side) {
+    if (mapZoomBehavior[side]) return;
+    const viewport = d3.select(`#map-zoom-viewport-${side}`);
+    const surface = d3.select(`#map-zoom-surface-${side}`);
+    if (viewport.empty() || surface.empty()) return;
+
+    const zoom = d3
+      .zoom()
+      .scaleExtent([1, 10])
+      .on("start", () => {
+        resizeMapZoomExtent(side);
+      })
+      .on("zoom", (event) => {
+        surface.style("transform", mapZoomTransformCss(event.transform));
+      });
+
+    viewport.call(zoom);
+    resizeMapZoomExtent(side);
+    mapZoomBehavior[side] = zoom;
+
+    d3.select(`#map-zoom-reset-${side}`).on("click", (event) => {
+      event.stopPropagation();
+      viewport.interrupt().transition().duration(160).call(zoom.transform, d3.zoomIdentity);
+      surface.style("transform", mapZoomTransformCss(d3.zoomIdentity));
+    });
+  }
+
+  function installMapZoomAfterLayout() {
+    setupMapZoomForSide("l");
+    setupMapZoomForSide("r");
+    resizeMapZoomExtent("l");
+    resizeMapZoomExtent("r");
+  }
+
+  function updateMap(side, url, preserveZoom = false) {
     const img = d3.select(`#wms-img-${side}`);
     const loading = d3.select(`#map-loading-${side}`);
     if (img.empty() || loading.empty()) return;
@@ -631,6 +695,10 @@
       img.classed("loaded", true);
       loading.style("display", "none");
       mapImageReady[side] = true;
+      if (!preserveZoom) resetMapZoomTransform(side);
+      requestAnimationFrame(() => {
+        resizeMapZoomExtent(side);
+      });
     };
     imgNode.onerror = () => {
       loading.text("Map failed to load (network or CORS).");
@@ -882,7 +950,7 @@
         stopPlay();
         vizMonth = 1;
         moveScrubberKnob(1);
-        refresh();
+        /* Assign timer before refresh so keepMapZoom sees playTimer and map zoom is not reset on January frame. */
         playTimer = d3.interval(() => {
           if (vizMonth >= 12) {
             pausedMidPlayback = false;
@@ -893,6 +961,7 @@
           moveScrubberKnob(vizMonth);
           refresh();
         }, 880);
+        refresh();
         syncPlayButtons();
       }
 
@@ -929,6 +998,7 @@
           blYr.low === blYr.high ? String(blYr.low) : `${blYr.low}–${blYr.high}`;
         const dateStr = dateKey(vizYear, vizMonth);
         const mapW = compare ? MAP_WIDTH : Math.min(520, Math.round(MAP_WIDTH * 1.28));
+        const keepMapZoom = !!playTimer;
 
         const rowL = findRow(nameL, vizYear, vizMonth);
         const bboxL = rowL?.bbox ?? bboxForRegion(nameL);
@@ -949,13 +1019,20 @@
             hL > 0 && hR > 0 ? Math.min(hL, hR) : Math.max(hL, hR, 200);
           mainGridSel.style("--map-compare-h", `${mapCompareH}px`);
 
+          d3.select("#map-zoom-viewport-l")
+            .style("aspect-ratio", null)
+            .style("height", `${mapCompareH}px`);
+          d3.select("#map-zoom-viewport-r")
+            .style("aspect-ratio", null)
+            .style("height", `${mapCompareH}px`);
+
           if (bboxL) {
             d3.select("#wms-img-l").attr("width", mapW).attr("height", hL);
-            updateMap("l", buildWmsUrl(bboxL, dateStr, mapW, hL));
+            updateMap("l", buildWmsUrl(bboxL, dateStr, mapW, hL), keepMapZoom);
           }
           if (bboxR) {
             d3.select("#wms-img-r").attr("width", mapW).attr("height", hR);
-            updateMap("r", buildWmsUrl(bboxR, dateStr, mapW, hR));
+            updateMap("r", buildWmsUrl(bboxR, dateStr, mapW, hR), keepMapZoom);
           }
 
           renderStats(rowHasDecodeMetrics(rowL) ? rowL : null, "#stats-l");
@@ -967,10 +1044,12 @@
           const rowsR = byRegion.get(nameR) || [];
           renderNdviTwoRegionCompare(rowsL, rowsR, nameL, nameR, vizYear, vizMonth, same);
           d3.select("#share-year-note").text(
-            `NDVI (Normalized Difference Vegetation Index) is a satellite greenness index: higher values usually mean denser, healthier vegetation. Solid lines: each region's mean NDVI for every calendar month in ${vizYear}. Dashed lines: for that same month of year, the average NDVI over ${baselineYearSpan}. Vertical rule: the month selected with the scrubber.`
+            `${NDVI_CHART_NOTE_OPEN}Solid lines: each region's mean NDVI for every calendar month in ${vizYear}. Dashed lines: for that same month of year, the average NDVI over ${baselineYearSpan}. Vertical rule: the month selected with the scrubber.`
           );
         } else {
           mainGridSel.style("--map-compare-h", null);
+          d3.select("#map-zoom-viewport-l").style("aspect-ratio", null).style("height", null);
+          d3.select("#map-zoom-viewport-r").style("aspect-ratio", null).style("height", null);
           updateReadoutSingle(nameL, vizYear, vizMonth, rowL);
           const monthLab = d3.timeFormat("%B %Y")(calendarDate(vizYear, vizMonth));
           d3.select("#stress-panel-title-l").text(`${nameL} Stress assessment — ${monthLab}`);
@@ -978,8 +1057,11 @@
 
           if (bboxL) {
             const hL = mapHeightForBbox(bboxL, mapW);
+            d3.select("#map-zoom-viewport-l").style("height", null).style("aspect-ratio", `${mapW} / ${hL}`);
             d3.select("#wms-img-l").attr("width", mapW).attr("height", hL);
-            updateMap("l", buildWmsUrl(bboxL, dateStr, mapW, hL));
+            updateMap("l", buildWmsUrl(bboxL, dateStr, mapW, hL), keepMapZoom);
+          } else {
+            d3.select("#map-zoom-viewport-l").style("aspect-ratio", null).style("height", null);
           }
 
           renderStats(rowHasDecodeMetrics(rowL) ? rowL : null, "#stats-l");
@@ -990,7 +1072,7 @@
           const rowsL = byRegion.get(nameL) || [];
           renderNdviYearVsBaseline(rowsL, nameL, vizYear, vizMonth);
           d3.select("#share-year-note").text(
-            `NDVI (Normalized Difference Vegetation Index) is a satellite greenness index: higher values usually mean denser, healthier vegetation. Solid line: regional mean NDVI for each calendar month in ${vizYear}. Dashed line: for that same month of year, the average NDVI over ${baselineYearSpan}. Vertical rule: the month selected with the scrubber.`
+            `${NDVI_CHART_NOTE_OPEN}Solid line: regional mean NDVI for each calendar month in ${vizYear}. Dashed line: for that same month of year, the average NDVI over ${baselineYearSpan}. Vertical rule: the month selected with the scrubber.`
           );
         }
 
@@ -1000,6 +1082,10 @@
         d3.select("#btn-play").text(`▶ Play From January (${vizYear})`);
         moveScrubberKnob(vizMonth);
         syncPlayButtons();
+        requestAnimationFrame(() => {
+          resizeMapZoomExtent("l");
+          resizeMapZoomExtent("r");
+        });
       }
 
       function onRegionOrYearChange() {
@@ -1059,6 +1145,9 @@
       applyViewModeLayout();
       buildMonthScrubber();
       refresh();
+      requestAnimationFrame(() => {
+        requestAnimationFrame(installMapZoomAfterLayout);
+      });
     })
     .catch((e) => {
       showError("Could not load " + DATA_URL + ": " + (e && e.message ? e.message : String(e)));

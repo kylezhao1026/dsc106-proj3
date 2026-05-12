@@ -19,6 +19,8 @@
       --healthy: #2a9483;
       --ndvi-line: #2a75ad;
       --viz-sep: #cbd5e1;
+      /* Map letterbox / transparent WMS padding — keep viewport + surface aligned with .map-wrap */
+      --map-frame-bg: #0a120e;
     }
     * { box-sizing: border-box; }
     body {
@@ -217,12 +219,66 @@
     .panel h2 { margin: 0 0 0.75rem; font-size: 1.05rem; }
     .map-wrap {
       position: relative;
-      background: #0f172a;
+      background: var(--map-frame-bg);
       border-radius: 8px;
-      min-height: 200px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      min-height: 120px;
+      width: 100%;
+      display: block;
+    }
+    /* Viewport clips tile; surface gets d3 zoom transform; img uses contain (no crop; letterboxing if aspect differs). */
+    .map-zoom-viewport {
+      position: relative;
+      overflow: hidden;
+      width: 100%;
+      max-width: 100%;
+      border-radius: 6px;
+      touch-action: none;
+      line-height: 0;
+      background: var(--map-frame-bg);
+    }
+    #main-grid[data-mode="compare"] .maps-row .map-zoom-viewport {
+      height: var(--map-compare-h, 280px);
+    }
+    .map-zoom-surface {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      transform-origin: 0 0;
+      will-change: transform;
+      background: var(--map-frame-bg);
+    }
+    .map-zoom-surface img {
+      display: block;
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      object-position: center;
+      pointer-events: none;
+      border-radius: 6px;
+    }
+    .map-zoom-reset {
+      position: absolute;
+      right: 8px;
+      bottom: 8px;
+      z-index: 3;
+      font: inherit;
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 0.3rem 0.55rem;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      background: rgba(10, 18, 14, 0.85);
+      color: #e2e8f0;
+      cursor: pointer;
+    }
+    .map-zoom-reset:hover {
+      background: rgba(6, 12, 10, 0.92);
+      color: #fff;
     }
     #main-grid[data-mode="compare"] .maps-row > .panel {
       display: flex;
@@ -230,17 +286,14 @@
       height: 100%;
     }
     /*
-      Compare: --map-compare-h = min native tile height (px at WMS width).
-      Both imgs use that as CSS height + object-fit: contain so the taller map scales down until heights match (no crop).
-      Map wrap does not flex-grow so extra panel space stays white, not dark bands above/below the image.
+      Compare: --map-compare-h = min(hL, hR) native tile heights so both map viewports share the same height.
+      object-fit: contain keeps each WMS image fully visible (no crop) inside that box.
     */
     #main-grid[data-mode="compare"] .maps-row .map-wrap {
       flex: 0 0 auto;
       width: 100%;
       min-height: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      display: block;
       overflow: hidden;
     }
     #main-grid[data-mode="compare"] .stress-row > .panel {
@@ -251,22 +304,6 @@
     #main-grid[data-mode="compare"] .stress-row .stress-share-block {
       margin-top: auto;
     }
-    .map-wrap img {
-      display: block;
-      width: 100%;
-      height: auto;
-      max-width: 100%;
-      border-radius: 6px;
-    }
-    #main-grid[data-mode="compare"] .maps-row .map-wrap img {
-      position: relative;
-      width: auto;
-      height: var(--map-compare-h, 240px);
-      max-width: 100%;
-      object-fit: contain;
-      object-position: center;
-      border-radius: 6px;
-    }
     .map-wrap .loading {
       position: absolute;
       left: 50%;
@@ -274,10 +311,71 @@
       transform: translate(-50%, -50%);
       color: #94a3b8;
       font-size: 0.9rem;
-      z-index: 1;
+      z-index: 4;
       white-space: nowrap;
+      pointer-events: none;
     }
-    .map-wrap img.loaded + .loading { display: none; }
+    .map-wrap:has(img.loaded) .loading { display: none; }
+    /* GIBS MODIS_L3_NDVI colormap–inspired scale (approximate smooth gradient for legend only). */
+    @media (min-width: 900px) {
+      .maps-row.maps-row-legend .ndvi-map-legend-span {
+        grid-column: 1 / -1;
+      }
+    }
+    .ndvi-map-legend-span {
+      background: #f8fafc;
+      border-radius: 8px;
+      padding: 0.65rem 0.85rem 0.75rem;
+      border: 1px solid var(--border);
+    }
+    .ndvi-map-legend-span .ndvi-legend-title {
+      margin: 0 0 0.4rem;
+      font-size: 0.82rem;
+      font-weight: 650;
+      color: var(--text);
+    }
+    .ndvi-map-legend-span .ndvi-legend-lead {
+      margin: 0 0 0.5rem;
+      font-size: 0.78rem;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+    .ndvi-map-legend-span .ndvi-legend-lead a {
+      color: #147a6c;
+      font-weight: 600;
+    }
+    .ndvi-gibs-gradient {
+      height: 20px;
+      border-radius: 6px;
+      border: 1px solid rgba(15, 23, 42, 0.18);
+      background: linear-gradient(
+        90deg,
+        rgb(241, 236, 236) 0%,
+        rgb(200, 181, 166) 11%,
+        rgb(165, 132, 105) 20%,
+        rgb(150, 90, 70) 28%,
+        rgb(191, 222, 119) 33%,
+        rgb(143, 183, 21) 42%,
+        rgb(100, 166, 0) 52%,
+        rgb(67, 141, 0) 62%,
+        rgb(5, 100, 0) 80%,
+        rgb(0, 24, 0) 100%
+      );
+    }
+    .ndvi-gibs-ticks {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 0.25rem;
+      font-size: 0.72rem;
+      font-variant-numeric: tabular-nums;
+      color: var(--muted);
+    }
+    .ndvi-map-legend-span .ndvi-legend-foot {
+      margin: 0.45rem 0 0;
+      font-size: 0.72rem;
+      color: var(--muted);
+      line-height: 1.4;
+    }
     .caption { font-size: 0.8rem; color: var(--muted); margin: 0.5rem 0 0; }
     .stats {
       display: grid;
@@ -399,9 +497,17 @@
   <header>
     <h1>Interactive MODIS NDVI &amp; vegetation stress</h1>
     <p>
-      Data from <code>data/modis_ndvi_region_month.json</code>. Use <strong>View</strong> to show one region or compare two side by side; use the trend controls or month scrubber for the selected year.
-      Map tiles: NASA GIBS WMS <code>MODIS_Terra_L3_NDVI_Monthly</code>; maps use <code>MODIS_Aqua_L3_NDVI_Monthly</code> only for <code>2025-04-01</code> (Terra tile missing that month on GIBS).
-      Stress = share of pixels with NDVI &lt; 0.30 (decoded colormap); high health = NDVI ≥ 0.60.
+      <strong>NDVI (Normalized Difference Vegetation Index)</strong> measures how green and dense vegetation is
+      in each map pixel: values run roughly from <strong>0</strong> (sparse or stressed vegetation / bare ground)
+      toward <strong>1</strong> (thick, healthy canopy). Colors on the maps follow NASA’s
+      <strong>GIBS MODIS NDVI</strong> palette; the bar under the maps approximates that scale (each pixel is
+      matched to the nearest palette color to estimate NDVI for summaries).
+      Data tables come from <code>data/modis_ndvi_region_month.json</code>. Use <strong>View</strong> for one region
+      or compare two; use the month scrubber or play controls for the selected year.
+      <strong>Maps:</strong> scroll or pinch to zoom, drag to pan when zoomed, then use <strong>Reset zoom</strong> to fit the tile again (zoom resets when you change region, year, or month by hand; it is kept while <strong>Play</strong> / <strong>Resume</strong> advances months).
+      Map tiles: GIBS WMS <code>MODIS_Terra_L3_NDVI_Monthly</code>; <code>MODIS_Aqua_L3_NDVI_Monthly</code> only for
+      <code>2025-04-01</code> when Terra has no tile.
+      <strong>Stress</strong> = share of pixels with decoded NDVI &lt; 0.30; <strong>high health</strong> = NDVI ≥ 0.60.
     </p>
   </header>
 
@@ -439,26 +545,51 @@
         <div class="time-readout" id="time-readout"></div>
         <div class="month-scrubber-block">
           <div class="month-scrubber-host" id="month-scrubber-host" aria-label="Select month for stress assessment"></div>
-          <p class="month-scrubber-hint">Drag or tap the scrubber to pick a month!</p>
+          <p class="month-scrubber-hint">Drag or tap the scrubber to pick a month to analyze!</p>
         </div>
       </div>
     </div>
 
     <div id="main-grid" hidden data-mode="one">
-      <div class="compare-row maps-row">
+      <div class="compare-row maps-row maps-row-legend">
         <div class="panel">
           <h2 id="map-title-left">NDVI map</h2>
           <div class="map-wrap">
-            <img id="wms-img-l" alt="MODIS NDVI left region" width="400" height="400" />
+            <div class="map-zoom-viewport" id="map-zoom-viewport-l" aria-label="NDVI map zoom">
+              <div class="map-zoom-surface" id="map-zoom-surface-l">
+                <img id="wms-img-l" alt="MODIS NDVI left region" width="400" height="400" />
+              </div>
+            </div>
+            <button type="button" class="map-zoom-reset" id="map-zoom-reset-l">Reset zoom</button>
             <span class="loading" id="map-loading-l">Loading map…</span>
           </div>
         </div>
         <div class="panel only-compare">
           <h2 id="map-title-right">NDVI map — right</h2>
           <div class="map-wrap">
-            <img id="wms-img-r" alt="MODIS NDVI right region" width="400" height="400" />
+            <div class="map-zoom-viewport" id="map-zoom-viewport-r" aria-label="NDVI map zoom">
+              <div class="map-zoom-surface" id="map-zoom-surface-r">
+                <img id="wms-img-r" alt="MODIS NDVI right region" width="400" height="400" />
+              </div>
+            </div>
+            <button type="button" class="map-zoom-reset" id="map-zoom-reset-r">Reset zoom</button>
             <span class="loading" id="map-loading-r">Loading map…</span>
           </div>
+        </div>
+        <div class="ndvi-map-legend-span" aria-label="GIBS NDVI colormap scale">
+          <p class="ndvi-legend-title">Map colors → NDVI (GIBS palette)</p>
+          <p class="ndvi-legend-lead">
+            Brown and tan tones are low NDVI (little green vegetation); yellow–greens are moderate; deep greens are
+            high NDVI (dense canopy). This strip is a smoothed guide to the official discrete
+            <a href="https://gibs.earthdata.nasa.gov/colormaps/v1.3/MODIS_L3_NDVI.xml">MODIS_L3_NDVI</a> colormap.
+          </p>
+          <div class="ndvi-gibs-gradient" role="presentation"></div>
+          <div class="ndvi-gibs-ticks" aria-hidden="true">
+            <span>0</span><span>0.2</span><span>0.4</span><span>0.6</span><span>0.8</span><span>1.0</span>
+          </div>
+          <p class="ndvi-legend-foot">
+            Stress / health bars use the same decoded NDVI per pixel: stress if NDVI &lt; 0.30, high health if NDVI ≥ 0.60.
+          </p>
         </div>
       </div>
       <div class="compare-row stress-row">

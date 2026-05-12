@@ -142,10 +142,20 @@
       <h2>Data &amp; methods</h2>
       <div class="methods">
         <p>
-          Monthly composites use <strong>MODIS Terra L3 NDVI Monthly</strong> from NASA
+          <strong>NDVI (Normalized Difference Vegetation Index)</strong> is a satellite index of how much live
+          green vegetation is present: it compares reflected near-infrared (strong from leaves) to red light
+          (often absorbed by chlorophyll). Values are usually shown from about <strong>0</strong> (little or no
+          green vegetation) up to near <strong>1</strong> (dense, healthy canopy). It is useful for comparing
+          “how green” a place is across time and across regions, as well as for monitoring changes in vegetation health over time.
+        </p>
+        <p>
+          Our monthly composites use <strong>MODIS Terra L3 NDVI Monthly</strong> from NASA
           <strong>GIBS WMS</strong> (Aqua is used only for April&nbsp;2025 when Terra has no tile).
-          Pixels are decoded with the official GIBS NDVI colormap to produce
-          approximate regional means (exploratory / visualization-scale, not raw science retrieval).
+          Pixels are decoded with the official <strong>GIBS NDVI colormap</strong> to produce
+          approximate regional means.
+        </p>
+        <p> Between the listed regions, we see a mix of different climates and land across the U.S. with one tropical rainforest as a contrast. 
+          We use the following metrics to analyze the health of vegetation:
         </p>
         <ul>
           <li><strong>Regions:</strong> California Central Valley, Pacific Northwest, Great Plains, Southeast US, Amazon Basin.</li>
@@ -155,12 +165,33 @@
       </div>
     </section>
 
+    <section id="writeup">
+      <h2>Write up</h2>
+      <p>
+        <strong>NDVI</strong> summarizes vegetation greenness from space: higher values mean more vigorous leaf
+        cover in that pixel’s month, and lower values mean sparse, stressed, or non-vegetated surfaces. In this
+        project, each map tile is already colorized by NASA’s GIBS palette; we match those colors back to numeric
+        NDVI bins to compute regional means and stress shares, so what you see on the map and what you read in the
+        charts describe the same signal at different scales.
+      </p>
+      <p>
+        Monthly Terra NDVI composites (with Aqua only where Terra has no tile) let us compare five regions through
+        mean greenness, stress share, and high-health share across the year. The exploratory figures summarize how
+        seasonal timing and variability differ by region; the interactive view connects those statistics to the
+        GIBS map for any month you choose. Together they address where and when vegetation appears healthier versus
+        where more pixels fall below the stress threshold—and how that relates to regional mean NDVI.
+      </p>
+    </section>
+
     <section id="interactive">
       <h2>Interactive visualization</h2>
       <p>
-        Pick a region and month to see MODIS NDVI from NASA GIBS alongside the same regional mean NDVI, stress
-        share, and high-health share. For static exploratory charts (time series, distributions, heatmap, etc.),
-        see <a href="exploration.html">Exploratory visualizations</a>.
+        Normalized Difference Vegetation Index, abbreviated to NDVI, is a metric used to measure and map the health, 
+        density, and greenness of vegetation. Values range from -1 to 1, with higher values indicating denser, healthier vegetation.
+        <br>
+        Using map tiles colorized by NASA’s GIBS (Global Imagery Browse Services) palette, you can see where 
+        and when vegetation appears healthier! Choose a region and a year, or compare two regions that year,  
+        and visualize the mean greenness, stress share, and high-health share across the year!   
       </p>
       <div class="viz-embed">
         <iframe
