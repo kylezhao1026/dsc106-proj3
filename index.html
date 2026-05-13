@@ -4,14 +4,21 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>NDVI patterns — vegetation stress &amp; health</title>
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
   <style>
     :root {
-      --bg: #fafafa;
-      --text: #1a1a1a;
-      --muted: #444;
-      --border: #e5e7eb;
+      --bg: #f8fafc;
+      --text: #0f172a;
+      --muted: #475569;
+      --green: #147a6c;
+      --green-bg: #eef6f4;
+      --border: #e2e8f0;
       --card: #fff;
-      /* Same max width as the interactive iframe (`.viz-embed`) */
+      --stress: #c75a2a;
+      --mid: #8e9faf;
+      --healthy: #2a9483;
+      --ndvi-line: #2a75ad;
+      --viz-sep: #cbd5e1;
       --page-wide: min(96vw, 88rem);
     }
     * { box-sizing: border-box; }
@@ -146,19 +153,466 @@
       color: var(--muted);
       font-variant-numeric: tabular-nums;
     }
-    .viz-embed {
-      margin-top: 0.75rem;
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      overflow: hidden;
+
+    /* ── Interactive visualization styles ─────────────────── */
+    .note {
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-bottom: 1rem;
+      padding: 0.65rem 0.75rem;
       background: #fff;
-      width: 100%;
+      border: none;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
     }
-    .viz-embed iframe {
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem 1.5rem;
+      align-items: center;
+      margin-bottom: 1rem;
+      padding: 1rem;
+      background: #fff;
+      border: none;
+      border-radius: 10px;
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+    }
+    .controls label { font-weight: 600; font-size: 0.9rem; }
+    .controls select {
+      margin-left: 0.35rem;
+      padding: 0.35rem 0.5rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      min-width: 14rem;
+    }
+    .anim-controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.45rem;
+      max-width: 100%;
+    }
+    .anim-controls button {
+      font: inherit;
+      font-weight: 600;
+      font-size: 0.88rem;
+      padding: 0.4rem 0.85rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: #fff;
+      color: var(--text);
+      cursor: pointer;
+    }
+    .anim-controls button:hover {
+      background: var(--green-bg);
+      border-color: #b8d9d2;
+    }
+    .anim-controls button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+    .takeaway-card {
+      margin: 0 0 0.8rem;
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--ndvi-line);
+      border-radius: 8px;
+      background: #f8fafc;
+      padding: 0.7rem 0.8rem;
+    }
+    .takeaway-card[data-state="below"] { border-left-color: var(--stress); }
+    .takeaway-card[data-state="above"] { border-left-color: var(--healthy); }
+    .takeaway-card[data-state="missing"] { border-left-color: var(--mid); }
+    .insight-kicker {
+      margin: 0 0 0.25rem;
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .insight-title {
+      margin: 0 0 0.2rem;
+      font-size: 0.95rem;
+      font-weight: 750;
+      color: var(--text);
+    }
+    .insight-copy {
+      margin: 0;
+      font-size: 0.84rem;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+    .scrub-progress {
+      stroke: var(--ndvi-line);
+      stroke-width: 6;
+      stroke-linecap: round;
+    }
+    .scrub-hit { cursor: pointer; }
+    .month-scrubber-block {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .month-scrubber-host {
+      width: 100%;
+      max-width: 42rem;
+    }
+    .month-scrubber-host svg {
       display: block;
       width: 100%;
-      min-height: 1080px;
-      border: 0;
+      max-width: 42rem;
+      height: auto;
+      margin: 0 auto;
+    }
+    .month-scrubber-hint {
+      margin: 0.5rem 0 0;
+      width: 100%;
+      max-width: 42rem;
+      text-align: center;
+      font-size: 0.9rem;
+      font-weight: 650;
+      color: var(--muted);
+    }
+    .stress-panel-time {
+      margin-bottom: 0.85rem;
+      padding-bottom: 0.85rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .time-readout {
+      font-size: 0.92rem;
+      font-weight: 650;
+      color: var(--text);
+      margin: 0.25rem 0 0.35rem;
+    }
+    .time-readout .muted {
+      font-weight: 500;
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+    .compare-row {
+      display: grid;
+      gap: 1.25rem;
+      grid-template-columns: 1fr;
+      margin-bottom: 1.25rem;
+    }
+    .top-analysis-row {
+      display: grid;
+      grid-template-columns: minmax(20rem, 0.95fr) minmax(24rem, 1.05fr);
+      gap: 1.25rem;
+      align-items: start;
+      margin-bottom: 1.25rem;
+    }
+    .top-analysis-row .controls {
+      align-self: start;
+      margin-bottom: 0;
+    }
+    .top-analysis-row .panel-chart {
+      align-self: start;
+      margin-bottom: 0;
+    }
+    .top-analysis-row #share-year-chart {
+      max-height: 240px;
+    }
+    @media (min-width: 900px) {
+      .compare-row { grid-template-columns: 1fr 1fr; align-items: start; }
+      #main-grid[data-mode="compare"] .compare-row {
+        align-items: stretch;
+      }
+    }
+    #main-grid[data-mode="compare"] {
+      display: block;
+    }
+    #main-grid[data-mode="one"] {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      grid-template-areas: "map stress";
+      gap: 1.25rem;
+      align-items: start;
+    }
+    #main-grid[data-mode="one"] > .maps-row {
+      grid-area: map;
+      display: block;
+      margin-bottom: 0;
+    }
+    #main-grid[data-mode="one"] > .stress-row {
+      grid-area: stress;
+      display: block;
+      margin-bottom: 0;
+    }
+    #main-grid[data-mode="one"] .only-compare {
+      display: none !important;
+    }
+    #main-grid[data-mode="one"] .maps-row .panel:not(.only-compare) {
+      max-width: none;
+      width: 100%;
+    }
+    @media (max-width: 899px) {
+      .top-analysis-row {
+        grid-template-columns: 1fr;
+      }
+      #main-grid[data-mode="one"] {
+        grid-template-columns: 1fr;
+        grid-template-areas:
+          "map"
+          "stress";
+      }
+    }
+    .panel-chart { margin-bottom: 0; }
+    .region-compare-warn {
+      flex: 1 1 100%;
+      font-size: 0.85rem;
+      color: #a84820;
+      margin: 0;
+    }
+    .region-compare-warn[hidden] { display: none !important; }
+    #controls[data-view="one"] .only-compare-controls {
+      display: none !important;
+    }
+    .panel {
+      background: #fff;
+      border: none;
+      border-radius: 10px;
+      padding: 1rem;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.07);
+    }
+    .panel.panel-chart { overflow: visible; }
+    .panel h2 {
+      margin: 0 0 0.75rem;
+      font-size: 1.05rem;
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+    .map-wrap {
+      position: relative;
+      background: #0a120e;
+      border-radius: 8px;
+      min-height: 120px;
+      width: 100%;
+      display: block;
+    }
+    .map-zoom-viewport {
+      position: relative;
+      overflow: hidden;
+      width: 100%;
+      max-width: 100%;
+      border-radius: 6px;
+      touch-action: none;
+      line-height: 0;
+    }
+    #main-grid[data-mode="compare"] .maps-row .map-zoom-viewport {
+      height: var(--map-compare-h, 280px);
+    }
+    .map-zoom-surface {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      transform-origin: 0 0;
+      will-change: transform;
+    }
+    .map-zoom-surface img {
+      display: block;
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      object-position: center;
+      pointer-events: none;
+      border-radius: 6px;
+    }
+    .map-zoom-reset {
+      position: absolute;
+      right: 8px;
+      bottom: 8px;
+      z-index: 3;
+      font: inherit;
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 0.3rem 0.55rem;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      background: rgba(10, 18, 14, 0.85);
+      color: #e2e8f0;
+      cursor: pointer;
+    }
+    .map-zoom-reset:hover {
+      background: rgba(30, 41, 59, 0.9);
+      color: #fff;
+    }
+    #main-grid[data-mode="compare"] .maps-row > .panel {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+    #main-grid[data-mode="compare"] .maps-row .map-wrap {
+      flex: 0 0 auto;
+      width: 100%;
+      min-height: 0;
+      display: block;
+      overflow: hidden;
+    }
+    #main-grid[data-mode="compare"] .stress-row > .panel {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+    #main-grid[data-mode="compare"] .stress-row .stress-share-block {
+      margin-top: auto;
+    }
+    .map-wrap .loading {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      color: #94a3b8;
+      font-size: 0.9rem;
+      z-index: 4;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+    .map-wrap:has(img.loaded) .loading { display: none; }
+    .maps-row.maps-row-legend .map-zoom-hint {
+      grid-column: 1 / -1;
+      margin: 0.15rem 0 0;
+      font-size: 0.72rem;
+      line-height: 1.45;
+      color: var(--muted);
+    }
+    @media (min-width: 900px) {
+      .maps-row.maps-row-legend .ndvi-map-legend-span {
+        grid-column: 1 / -1;
+      }
+    }
+    .ndvi-map-legend-span {
+      background: #f8fafc;
+      border-radius: 8px;
+      padding: 0.65rem 0.85rem 0.75rem;
+      border: 1px solid var(--border);
+    }
+    .ndvi-map-legend-span .ndvi-legend-title {
+      margin: 0 0 0.4rem;
+      font-size: 0.82rem;
+      font-weight: 650;
+      color: var(--text);
+    }
+    .ndvi-map-legend-span .ndvi-legend-lead {
+      margin: 0 0 0.5rem;
+      font-size: 0.78rem;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+    .ndvi-map-legend-span .ndvi-legend-lead a {
+      color: #147a6c;
+      font-weight: 600;
+    }
+    .ndvi-gibs-gradient {
+      height: 20px;
+      border-radius: 6px;
+      border: 1px solid rgba(15, 23, 42, 0.18);
+      background: linear-gradient(
+        90deg,
+        rgb(241, 236, 236) 0%,
+        rgb(200, 181, 166) 11%,
+        rgb(165, 132, 105) 20%,
+        rgb(150, 90, 70) 28%,
+        rgb(191, 222, 119) 33%,
+        rgb(143, 183, 21) 42%,
+        rgb(100, 166, 0) 52%,
+        rgb(67, 141, 0) 62%,
+        rgb(5, 100, 0) 80%,
+        rgb(0, 24, 0) 100%
+      );
+    }
+    .ndvi-gibs-ticks {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 0.25rem;
+      font-size: 0.72rem;
+      font-variant-numeric: tabular-nums;
+      color: var(--muted);
+    }
+    .ndvi-map-legend-span .ndvi-legend-foot {
+      margin: 0.45rem 0 0;
+      font-size: 0.72rem;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+    .caption { font-size: 0.8rem; color: var(--muted); margin: 0.5rem 0 0; }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+      gap: 0.65rem;
+      margin-bottom: 1rem;
+    }
+    .stat {
+      background: var(--green-bg);
+      border: none;
+      border-radius: 8px;
+      padding: 0.5rem 0.65rem;
+    }
+    .stat .k { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--healthy); }
+    .stat .v { font-size: 1.15rem; font-weight: 700; color: var(--text); }
+    svg { display: block; width: 100%; height: auto; }
+    .axis text { font-size: 11px; fill: var(--muted); }
+    .axis path, .axis line { stroke: var(--border); }
+    .share-heading {
+      margin: 0 0 0.2rem;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+    .err { color: #a84820; font-size: 0.9rem; }
+    .share-year-panel h2 {
+      font-size: 1rem;
+      margin-top: 0;
+    }
+    .share-year-chart-wrap {
+      position: relative;
+      max-width: 100%;
+    }
+    .share-year-tooltip {
+      position: fixed;
+      pointer-events: none;
+      z-index: 200;
+      padding: 0.5rem 0.7rem;
+      background: #fff;
+      border: none;
+      border-radius: 8px;
+      box-shadow: 0 6px 20px rgba(15, 23, 42, 0.12);
+      font-size: 0.8rem;
+      line-height: 1.5;
+      min-width: 10rem;
+      max-width: min(22rem, calc(100vw - 16px));
+      box-sizing: border-box;
+      overflow-wrap: anywhere;
+      visibility: hidden;
+      opacity: 0;
+      transition: opacity 0.08s ease;
+    }
+    .share-year-tooltip.is-visible {
+      visibility: visible;
+      opacity: 1;
+    }
+    .share-year-tooltip .tip-title {
+      font-weight: 650;
+      margin: 0 0 0.4rem;
+      color: var(--text);
+      font-size: 0.82rem;
+    }
+    .share-year-tooltip .tip-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 1.25rem;
+      margin: 0.1rem 0;
+    }
+    .share-year-tooltip .tip-row span:first-child { font-weight: 500; }
+    .share-year-tooltip .tip-row span:last-child {
+      font-variant-numeric: tabular-nums;
+      color: var(--text);
     }
   </style>
 </head>
@@ -185,7 +639,7 @@
           green vegetation is present: it compares reflected near-infrared (strong from leaves) to red light
           (often absorbed by chlorophyll). Values are usually shown from about <strong>0</strong> (little or no
           green vegetation) up to near <strong>1</strong> (dense, healthy canopy). It is useful for comparing
-          “how green” a place is across time and across regions, as well as for monitoring changes in vegetation health over time.
+          "how green" a place is across time and across regions, as well as for monitoring changes in vegetation health over time.
         </p>
         <p>
           Our monthly composites use <strong>MODIS Terra L3 NDVI Monthly</strong> from NASA
@@ -205,7 +659,7 @@
             <span>0</span><span>0.2</span><span>0.4</span><span>0.6</span><span>0.8</span><span>1.0</span>
           </div>
         </div>
-        <p> Between the listed regions, we see a mix of different climates and land across the U.S. with one tropical rainforest as a contrast. 
+        <p> Between the listed regions, we see a mix of different climates and land across the U.S. with one tropical rainforest as a contrast.
           We use the following metrics to analyze the health of vegetation:
         </p>
         <ul>
@@ -219,46 +673,156 @@
     <section id="writeup">
       <h2>Write-up</h2>
       <p>
-        Our motivation was to make satellite vegetation data easier to interpret as a question of timing and place: which regions look stressed, which look healthy, and which months differ from what that region normally looks like during the same season? Raw NDVI maps can show where vegetation is greener, but they do not automatically tell a reader whether a month is unusual or simply following a normal seasonal cycle. We used NASA MODIS monthly NDVI imagery because NDVI turns reflected satellite light into a simple vegetation-health measure. Higher NDVI generally means denser green vegetation, while lower NDVI can correspond to sparse vegetation, bare ground, or possible vegetation stress.
+        Our motivation was to make satellite vegetation data easier to interpret as a question of timing and place: which regions look stressed, which look healthy, and which months differ from what that region normally looks like during the same season? Raw NDVI maps can show where vegetation is greener, but they do not automatically tell a reader whether a month is unusual or simply following a normal seasonal cycle. We used NASA MODIS monthly NDVI imagery because NDVI turns reflected satellite light into a simple vegetation health measure. Higher NDVI generally means denser green vegetation, while lower NDVI can correspond to sparse vegetation, bare ground, or other vegetation stress.
       </p>
       <p>
-        We transformed the GIBS map tiles into regional summaries by decoding pixels through NASA's GIBS NDVI colormap, then aggregating each region-month into mean NDVI, median NDVI, stress share, and high-health share. Stress share is the percent of vegetated pixels below NDVI 0.30, while high-health share is the percent at or above NDVI 0.60. We also computed a same-month historical baseline from prior years. This baseline is important because a region can look brown in winter without being unusually stressed; comparing February to past Februaries separates expected seasonality from more unusual vegetation conditions.
+        We transformed the GIBS map tiles into regional summaries by decoding pixels through NASA's GIBS NDVI colormap, then aggregating each region-month into mean NDVI, median NDVI, stress share, and high-health share. Stress share is the percent of vegetated pixels below NDVI 0.30, while high-health share is the percent at or above NDVI 0.60. We also computed a same month historical baseline from prior years. This baseline is important because a region can look brown in winter without being unusually stressed. Comparing February to past Februaries separates expected seasonality from more unusual vegetation conditions.
       </p>
       <p>
         The main map keeps the original spatial texture of the satellite data, while the summary tiles and stacked bar translate the map into comparable numbers. We used the GIBS NDVI palette for the maps because it is the source palette used to decode the pixels, then added a visible legend so readers can interpret tan/brown as low NDVI, yellow-green as moderate NDVI, and dark green as high NDVI. For the charts and stress bars, we avoided relying on red-green contrast by using orange for stress, gray for moderate vegetation, and teal/blue for healthier vegetation and NDVI lines.
       </p>
       <p>
-        We were careful not to make the month scrubber the only interaction. A slider by itself can be weaker than a static small-multiple chart because it hides previous months from view. To avoid that, the selected month is linked to the map, the stress/high-health bar, the full-year NDVI line chart, the same-month baseline, and a takeaway inside the stress panel. The chart keeps the whole year visible while the map shows spatial detail for the selected month, so users can move between overview and detail without losing context. In comparison mode, the same month and year control two regions at once, making regional differences easier to evaluate than if each map were explored separately.
+        We were careful not to make the month scrubber the only interaction. A slider by itself can be weaker than a static small-multiple chart because it hides previous months from view. To avoid that, the selected month is linked to the map, the stress/high-health bar, the full year NDVI line chart, the same month baseline, and a takeaway inside the stress panel. The chart keeps the whole year visible while the map shows spatial detail for the selected month, so users can move between overview and detail without losing context. In comparison mode, the same month and year control two regions at once, making regional differences easier to evaluate than if each map were explored separately.
       </p>
       <p>
-        We considered several alternatives before settling on this design. We considered showing twelve static maps for every region, but that would take a lot of space and make it harder to connect each map to exact stress values and historical context. We considered pie charts for vegetation-health categories, but stacked bars make percentage comparisons easier. For regional comparison, we considered overlaying two regions on one map, but side-by-side maps kept the spatial patterns readable. Overall, we chose a coordinated map, chart, baseline, and stress-panel summary because it keeps spatial detail, numeric summaries, and historical context synchronized.
+        We considered several alternatives before settling on this design. As mentioned in lecture, we considered showing twelve static maps for every region, but despite ease of comparison, that would take a lot of space and make it harder to connect each map to exact stress values and historical context. We considered pie charts for vegetation health categories, but stacked bars make percentage comparisons easier. For regional comparison, we considered overlaying two regions on one map, but side-by-side maps kept the spatial patterns readable. Overall, we chose a coordinated map, chart, baseline, and stress panel summary because it keeps spatial detail, numeric summaries, and historical context in sync.
       </p>
       <p>
-        Our development process was very collaborative. At the start of the project, each of us created two exploratory visualizations to help investigate our research question and better understand the NDVI data before designing the final interactive visualization. Elyse mainly focused on building the base of the interactive visualization by collecting and organizing the NDVI data from the past 20 years and creating the first rendered version for the checkpoint submission. Kyle helped develop the stacked bar chart for vegetation health comparison and later worked on the side-by-side comparison mode for viewing two regions at once. Philip spent a lot of time debugging the checkpoint version and later added the play feature along with additional summary statistic charts to improve the temporal exploration.
+        Our development process was collaborative. For the checkpoint, each of us created two exploratory visualizations to help investigate our research question and better understand the NDVI data before designing the final interactive visualization. Elyse mainly focused on building the base of the interactive visualization by collecting and organizing the NDVI data from the past 20 years and creating the first rendered version for the checkpoint submission. Kyle helped develop the stacked bar chart for vegetation health comparison and later worked on the side-by-side comparison mode for viewing two regions at once. Philip spent a lot of time debugging the checkpoint version and later added the play feature along with additional summary statistic charts to improve the temporal exploration. However, we all collaborated with each other on our respective parts to create the final product.
       </p>
       <p>
-        Overall, we estimate that we spent around 10–20 people-hours developing the application. We did not strictly track our time since a lot of the coding and debugging was done together in person. The parts that took the longest were making sure all of the interactive components updated correctly together and debugging issues with the comparison mode and playback features.
+        Overall, we estimate that we spent around 10–20 people-hours developing the application. We did not strictly track our time. The parts that took the longest were making sure all of the interactive components updated correctly together and debugging issues with the comparison mode and playback features.
       </p>
     </section>
 
     <section id="interactive">
-      <h2>Interactive visualization</h2>
+      <h2>Interactive Visualization</h2>
       <p>
-        Normalized Difference Vegetation Index, abbreviated to NDVI, is a metric used to measure and map the health, 
+        Normalized Difference Vegetation Index, abbreviated to NDVI, is a metric used to measure and map the health,
         density, and greenness of vegetation. Values range from -1 to 1, with higher values indicating denser, healthier vegetation.
         <br>
-        Using map tiles colorized by NASA’s GIBS (Global Imagery Browse Services) palette, you can see where 
-        and when vegetation appears healthier! Choose a region and a year, or compare two regions that year,  
-        and visualize the mean greenness, stress share, and high-health share across the year!   
+        Using map tiles colorized by NASA's GIBS (Global Imagery Browse Services) palette, you can see where
+        and when vegetation appears healthier! Choose a region and a year, or compare two regions that year,
+        and visualize the mean greenness, stress share, and high-health share across the year!
       </p>
-      <div class="viz-embed">
-        <iframe
-          title="Interactive MODIS NDVI map and stress visualization"
-          src="interactive.html?embed=1"
-          loading="lazy"
-        ></iframe>
+
+      <p class="note" id="fetch-note">
+        Open this page via a local server (browsers block <code>fetch</code> from <code>file://</code>):
+        <code>python3 -m http.server 8080</code> then visit
+        <code>http://localhost:8080/index.html</code>
+      </p>
+      <p class="err" id="error" hidden></p>
+
+      <div class="top-analysis-row" id="top-analysis-row" hidden>
+        <div class="controls" id="controls" hidden>
+          <label>
+            View
+            <select id="view-mode">
+              <option value="one" selected>One region</option>
+              <option value="compare">Compare two regions</option>
+            </select>
+          </label>
+          <label id="label-region-left-wrap">
+            <span id="label-region-left">Region</span>
+            <select id="region-select-left"></select>
+          </label>
+          <label id="label-region-right-wrap" class="only-compare-controls">
+            <span id="label-region-right">Region (right)</span>
+            <select id="region-select-right"></select>
+          </label>
+          <p class="region-compare-warn" id="region-compare-warn" hidden>Choose two different regions to compare.</p>
+          <label>
+            Year
+            <select id="year-select"></select>
+          </label>
+          <div class="anim-controls" id="anim-controls"></div>
+          <div class="stress-panel-time" style="border: none; padding: 0; margin: 0; width: 100%;">
+            <div class="time-readout" id="time-readout"></div>
+            <div class="month-scrubber-block">
+              <div class="month-scrubber-host" id="month-scrubber-host" aria-label="Select month for stress assessment"></div>
+              <p class="month-scrubber-hint">Drag or tap the scrubber to pick a month to analyze!</p>
+            </div>
+          </div>
+        </div>
+        <div class="panel panel-chart">
+          <div class="share-year-panel" style="margin: 0; padding: 0; border: none;">
+            <h2 id="share-year-title">NDVI compared to the same-month average since 2006</h2>
+            <div class="share-year-chart-wrap">
+              <svg id="share-year-chart" viewBox="0 0 760 300" preserveAspectRatio="xMidYMid meet"></svg>
+              <div id="share-year-tooltip" class="share-year-tooltip" aria-hidden="true"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="main-grid" hidden data-mode="one">
+        <div class="compare-row maps-row maps-row-legend">
+          <div class="panel">
+            <h2 id="map-title-left">NDVI map</h2>
+            <div class="map-wrap">
+              <div class="map-zoom-viewport" id="map-zoom-viewport-l" aria-label="NDVI map zoom">
+                <div class="map-zoom-surface" id="map-zoom-surface-l">
+                  <img id="wms-img-l" alt="MODIS NDVI left region" width="400" height="400" decoding="async" fetchpriority="high" />
+                </div>
+              </div>
+              <button type="button" class="map-zoom-reset" id="map-zoom-reset-l">Reset zoom</button>
+              <span class="loading" id="map-loading-l">Loading map…</span>
+            </div>
+          </div>
+          <div class="panel only-compare">
+            <h2 id="map-title-right">NDVI map — right</h2>
+            <div class="map-wrap">
+              <div class="map-zoom-viewport" id="map-zoom-viewport-r" aria-label="NDVI map zoom">
+                <div class="map-zoom-surface" id="map-zoom-surface-r">
+                  <img id="wms-img-r" alt="MODIS NDVI right region" width="400" height="400" decoding="async" fetchpriority="high" />
+                </div>
+              </div>
+              <button type="button" class="map-zoom-reset" id="map-zoom-reset-r">Reset zoom</button>
+              <span class="loading" id="map-loading-r">Loading map…</span>
+            </div>
+          </div>
+          <p class="map-zoom-hint">
+            <strong>Maps:</strong> scroll or pinch on a map to zoom in; drag to pan when zoomed.
+            Use the <strong>Reset zoom</strong> button on the bottom right of each map to fit the full tile again.
+          </p>
+          <div class="ndvi-map-legend-span" aria-label="GIBS NDVI colormap scale">
+            <p class="ndvi-legend-title">Map colors → NDVI (GIBS palette)</p>
+            <p class="ndvi-legend-lead">
+              Brown and tan tones show low NDVI (little green vegetation), yellow–greens are moderate, and deep greens are high NDVI (dense canopy).
+            </p>
+            <div class="ndvi-gibs-gradient" role="presentation"></div>
+            <div class="ndvi-gibs-ticks" aria-hidden="true">
+              <span>0</span><span>0.2</span><span>0.4</span><span>0.6</span><span>0.8</span><span>1.0</span>
+            </div>
+            <p class="ndvi-legend-foot">
+              Stress / health bars use the same decoded NDVI per pixel: stress if NDVI &lt; 0.30, high health if NDVI ≥ 0.60.
+            </p>
+          </div>
+        </div>
+        <div class="compare-row stress-row">
+          <div class="panel">
+            <h2 id="stress-panel-title-l">Stress assessment</h2>
+            <div id="takeaway-l" aria-label="Left region takeaway"></div>
+            <div class="stats" id="stats-l"></div>
+            <div class="stress-share-block">
+              <p class="share-heading">Vegetation health share</p>
+              <svg id="share-bar-l" viewBox="0 0 400 56" preserveAspectRatio="xMidYMid meet"></svg>
+            </div>
+          </div>
+          <div class="panel only-compare">
+            <h2 id="stress-panel-title-r">Stress assessment — right</h2>
+            <div id="takeaway-r" aria-label="Right region takeaway"></div>
+            <div class="stats" id="stats-r"></div>
+            <div class="stress-share-block">
+              <p class="share-heading">Vegetation health share</p>
+              <svg id="share-bar-r" viewBox="0 0 400 56" preserveAspectRatio="xMidYMid meet"></svg>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
   </main>
+
+  <script src="js/interactive.js"></script>
 </body>
 </html>

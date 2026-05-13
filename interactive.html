@@ -179,6 +179,24 @@
       grid-template-columns: 1fr;
       margin-bottom: 1.25rem;
     }
+    .top-analysis-row {
+      display: grid;
+      grid-template-columns: minmax(20rem, 0.95fr) minmax(24rem, 1.05fr);
+      gap: 1.25rem;
+      align-items: start;
+      margin-bottom: 1.25rem;
+    }
+    .top-analysis-row .controls {
+      align-self: start;
+      margin-bottom: 0;
+    }
+    .top-analysis-row .panel-chart {
+      align-self: start;
+      margin-bottom: 0;
+    }
+    .top-analysis-row #share-year-chart {
+      max-height: 240px;
+    }
     @media (min-width: 900px) {
       .compare-row { grid-template-columns: 1fr 1fr; align-items: start; }
       #main-grid[data-mode="compare"] .compare-row {
@@ -188,14 +206,12 @@
     #main-grid[data-mode="compare"] {
       display: block;
     }
-    /* One region: map left, stress + NDVI chart right (classic two-column layout). */
+    /* One region: map left, stress right; chart is paired with controls above. */
     #main-grid[data-mode="one"] {
       display: grid;
       grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-      grid-template-rows: auto 1fr;
       grid-template-areas:
-        "map stress"
-        "map chart";
+        "map stress";
       gap: 1.25rem;
       align-items: start;
     }
@@ -209,10 +225,6 @@
       display: block;
       margin-bottom: 0;
     }
-    #main-grid[data-mode="one"] > .panel-chart {
-      grid-area: chart;
-      margin-bottom: 0;
-    }
     #main-grid[data-mode="one"] .only-compare {
       display: none !important;
     }
@@ -221,13 +233,14 @@
       width: 100%;
     }
     @media (max-width: 899px) {
+      .top-analysis-row {
+        grid-template-columns: 1fr;
+      }
       #main-grid[data-mode="one"] {
         grid-template-columns: 1fr;
-        grid-template-rows: auto;
         grid-template-areas:
           "map"
-          "stress"
-          "chart";
+          "stress";
       }
     }
     .panel-chart { margin-bottom: 0; }
@@ -450,11 +463,6 @@
       padding-bottom: 1rem;
       max-width: min(96vw, 88rem);
     }
-    .share-year-panel {
-      margin-top: 1.1rem;
-      padding-top: 1rem;
-      border-top: 1px solid var(--border);
-    }
     .share-year-panel h2 {
       font-size: 1rem;
       margin-top: 0;
@@ -562,33 +570,44 @@
     </p>
     <p class="err" id="error" hidden></p>
 
-    <div class="controls" id="controls" hidden>
-      <label>
-        View
-        <select id="view-mode">
-          <option value="one" selected>One region</option>
-          <option value="compare">Compare two regions</option>
-        </select>
-      </label>
-      <label id="label-region-left-wrap">
-        <span id="label-region-left">Region</span>
-        <select id="region-select-left"></select>
-      </label>
-      <label id="label-region-right-wrap" class="only-compare-controls">
-        <span id="label-region-right">Region (right)</span>
-        <select id="region-select-right"></select>
-      </label>
-      <p class="region-compare-warn" id="region-compare-warn" hidden>Choose two different regions to compare.</p>
-      <label>
-        Year
-        <select id="year-select"></select>
-      </label>
-      <div class="anim-controls" id="anim-controls"></div>
-      <div class="stress-panel-time" style="border: none; padding: 0; margin: 0; width: 100%;">
-        <div class="time-readout" id="time-readout"></div>
-        <div class="month-scrubber-block">
-          <div class="month-scrubber-host" id="month-scrubber-host" aria-label="Select month for stress assessment"></div>
-          <p class="month-scrubber-hint">Drag or tap the scrubber to pick a month to analyze!</p>
+    <div class="top-analysis-row" id="top-analysis-row" hidden>
+      <div class="controls" id="controls" hidden>
+        <label>
+          View
+          <select id="view-mode">
+            <option value="one" selected>One region</option>
+            <option value="compare">Compare two regions</option>
+          </select>
+        </label>
+        <label id="label-region-left-wrap">
+          <span id="label-region-left">Region</span>
+          <select id="region-select-left"></select>
+        </label>
+        <label id="label-region-right-wrap" class="only-compare-controls">
+          <span id="label-region-right">Region (right)</span>
+          <select id="region-select-right"></select>
+        </label>
+        <p class="region-compare-warn" id="region-compare-warn" hidden>Choose two different regions to compare.</p>
+        <label>
+          Year
+          <select id="year-select"></select>
+        </label>
+        <div class="anim-controls" id="anim-controls"></div>
+        <div class="stress-panel-time" style="border: none; padding: 0; margin: 0; width: 100%;">
+          <div class="time-readout" id="time-readout"></div>
+          <div class="month-scrubber-block">
+            <div class="month-scrubber-host" id="month-scrubber-host" aria-label="Select month for stress assessment"></div>
+            <p class="month-scrubber-hint">Drag or tap the scrubber to pick a month to analyze!</p>
+          </div>
+        </div>
+      </div>
+      <div class="panel panel-chart">
+        <div class="share-year-panel" style="margin: 0; padding: 0; border: none;">
+          <h2 id="share-year-title">NDVI compared to the same-month average since 2006</h2>
+          <div class="share-year-chart-wrap">
+            <svg id="share-year-chart" viewBox="0 0 760 300" preserveAspectRatio="xMidYMid meet"></svg>
+            <div id="share-year-tooltip" class="share-year-tooltip" aria-hidden="true"></div>
+          </div>
         </div>
       </div>
     </div>
@@ -654,16 +673,6 @@
           <div class="stress-share-block">
             <p class="share-heading">Vegetation health share</p>
             <svg id="share-bar-r" viewBox="0 0 400 56" preserveAspectRatio="xMidYMid meet"></svg>
-          </div>
-        </div>
-      </div>
-      <div class="panel panel-chart">
-        <div class="share-year-panel" style="margin: 0; padding: 0; border: none;">
-          <h2 id="share-year-title">NDVI compared to the same-month average since 2006</h2>
-          <p class="share-year-note" id="share-year-note"></p>
-          <div class="share-year-chart-wrap">
-            <svg id="share-year-chart" viewBox="0 0 760 400" preserveAspectRatio="xMidYMid meet"></svg>
-            <div id="share-year-tooltip" class="share-year-tooltip" aria-hidden="true"></div>
           </div>
         </div>
       </div>

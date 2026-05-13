@@ -11,6 +11,7 @@
   const LAYER_AQUA = "MODIS_Aqua_L3_NDVI_Monthly";
   const DATA_URL = "data/modis_ndvi_region_month.json";
   const MAP_WIDTH = 400;
+  const IS_EMBED = d3.select("body").classed("embed");
 
   const _rs = getComputedStyle(document.documentElement);
   const VIZ = {
@@ -368,7 +369,8 @@
 
     const margin = { top: 14, right: 22, bottom: 72, left: 52 };
     const W = 760;
-    const H = 400;
+    const H = 300;
+    svg.attr("viewBox", `0 0 ${W} ${H}`);
     const iw = W - margin.left - margin.right;
     const ih = H - margin.top - margin.bottom;
 
@@ -534,7 +536,8 @@
 
     const margin = { top: 14, right: 14, bottom: 92, left: 54 };
     const W = 760;
-    const H = 400;
+    const H = 300;
+    svg.attr("viewBox", `0 0 ${W} ${H}`);
     const iw = W - margin.left - margin.right;
     const ih = H - margin.top - margin.bottom;
 
@@ -825,6 +828,7 @@
       }
 
       d3.select("#fetch-note").property("hidden", true);
+      d3.select("#top-analysis-row").property("hidden", false);
       d3.select("#controls").property("hidden", false);
       d3.select("#main-grid").property("hidden", false);
 
@@ -1175,7 +1179,6 @@
           renderTakeaway("#takeaway-l", takeawayItem(rowsL, rowL, nameL, vizYear, vizMonth, sameMonthRows));
           renderTakeaway("#takeaway-r", takeawayItem(rowsR, rowR, nameR, vizYear, vizMonth, sameMonthRows));
           renderNdviTwoRegionCompare(rowsL, rowsR, nameL, nameR, vizYear, vizMonth, same);
-          d3.select("#share-year-note").text(NDVI_CHART_NOTE_OPEN);
 
           const pfMonths = [];
           if (vizMonth < 12) pfMonths.push(vizMonth + 1);
@@ -1231,7 +1234,6 @@
           const sameMonthRows = raw.filter((d) => d.year === vizYear && d.month === vizMonth);
           renderTakeaway("#takeaway-l", takeawayItem(rowsL, rowL, nameL, vizYear, vizMonth, sameMonthRows));
           renderNdviYearVsBaseline(rowsL, nameL, vizYear, vizMonth);
-          d3.select("#share-year-note").text(NDVI_CHART_NOTE_OPEN);
         }
 
         d3.select("#share-year-title").text(
