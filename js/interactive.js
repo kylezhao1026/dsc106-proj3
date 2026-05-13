@@ -89,6 +89,20 @@
     im.src = url;
   }
 
+  function prefetchYearTiles(bboxStr, year, width, height) {
+    if (!bboxStr || !year || !width || !height) return;
+    const run = () => {
+      for (let month = 1; month <= 12; month += 1) {
+        prefetchTileUrl(buildWmsUrl(bboxStr, dateKey(year, month), width, height));
+      }
+    };
+    if ("requestIdleCallback" in window) {
+      window.requestIdleCallback(run, { timeout: 1200 });
+    } else {
+      setTimeout(run, 0);
+    }
+  }
+
   function wmsLayerForTimeIso(timeIso) {
     return timeIso === "2025-04-01" ? LAYER_AQUA : LAYER_TERRA;
   }
@@ -240,6 +254,25 @@
     return `${year}-${String(month).padStart(2, "0")}-01`;
   }
 
+  function insightState(delta) {
+    if (!Number.isFinite(delta)) return "missing";
+    if (delta <= -0.03) return "below";
+    if (delta >= 0.03) return "above";
+    return "near";
+  }
+
+  function insightPhrase(delta) {
+    if (!Number.isFinite(delta)) return "No baseline comparison available";
+    if (delta <= -0.03) return "below its seasonal baseline";
+    if (delta >= 0.03) return "above its seasonal baseline";
+    return "near its seasonal baseline";
+  }
+
+  function signedNdvi(delta) {
+    if (!Number.isFinite(delta)) return "—";
+    return `${delta >= 0 ? "+" : ""}${fmtNdvi(delta)}`;
+  }
+
   /** Local calendar date (month 1–12). Avoid `new Date("YYYY-MM-DD")` — that is UTC and shifts labels in US timezones. */
   function calendarDate(year, month) {
     return new Date(year, month - 1, 1);
@@ -275,6 +308,56 @@
         baselineNdvi: baselineArr[month - 1],
       };
     });
+  }
+
+  function rankLabel(rank, total) {
+    if (!rank || !total) return "not ranked";
+    const suffix = rank % 10 === 1 && rank % 100 !== 11 ? "st" : rank % 10 === 2 && rank % 100 !== 12 ? "nd" : rank % 10 === 3 && rank % 100 !== 13 ? "rd" : "th";
+    return `${rank}${suffix} of ${total}`;
+  }
+
+  function renderTakeaway(targetSelector, item) {
+    const root = d3.select(targetSelector);
+    if (root.empty()) return;
+    root.selectAll("*").remove();
+    const card = root.append("div").attr("class", "takeaway-card").attr("data-state", item.state);
+    card.append("p").attr("class", "insight-kicker").text("Takeaway");
+    card.append("p").attr("class", "insight-title").text(item.title);
+    card.append("p").attr("class", "insight-copy").text(item.copy);
+  }
+
+  function takeawayItem(regionRows, row, regionLabel, selectedYear, selectedMonth, sameMonthRows) {
+    if (!row || !rowHasDecodeMetrics(row)) {
+      return {
+        state: "missing",
+        title: `${regionLabel}: no decoded NDVI`,
+        copy: "This month does not have enough decoded pixels to compare against seasonal or cross-region context.",
+      };
+    }
+
+    const baseline = baselineNdviByMonth(regionRows, selectedYear)[selectedMonth - 1];
+    const delta = Number.isFinite(baseline) ? +row.mean_ndvi - baseline : NaN;
+    const deltaPct = Number.isFinite(baseline) && baseline !== 0 ? (delta / baseline) * 100 : NaN;
+    const state = insightState(delta);
+    const yearRows = regionRows
+      .filter((d) => d.year === selectedYear && rowHasDecodeMetrics(d))
+      .sort((a, b) => b.stress_share - a.stress_share);
+    const stressRank = yearRows.findIndex((d) => d.month === selectedMonth) + 1;
+    const monthRows = sameMonthRows.filter(rowHasDecodeMetrics).sort((a, b) => b.stress_share - a.stress_share);
+    const regionRank = monthRows.findIndex((d) => d.region === regionLabel) + 1;
+    const monthLab = d3.timeFormat("%B %Y")(calendarDate(selectedYear, selectedMonth));
+    const anomaly =
+      Number.isFinite(deltaPct)
+        ? `${Math.abs(deltaPct).toFixed(0)}% ${delta >= 0 ? "above" : "below"} its same-month baseline`
+        : insightPhrase(delta);
+
+    return {
+      state,
+      title: `${regionLabel} is ${insightPhrase(delta)}`,
+      copy:
+        `${monthLab}: ${anomaly}. Stress ranks ${rankLabel(stressRank, yearRows.length)} within this region's ${selectedYear} months ` +
+        `and ${rankLabel(regionRank, monthRows.length)} among the five regions for this month.`,
+    };
   }
 
   function renderNdviYearVsBaseline(regionRows, regionLabel, selectedYear, activeMonth) {
@@ -807,6 +890,7 @@
       /** True only after the user hits Pause while the month animation is running (enables Resume). */
       let pausedMidPlayback = false;
       let scrubKnob = null;
+      let scrubProgress = null;
       let scrubXLin = null;
 
       function stopPlay() {
@@ -867,7 +951,10 @@
       }
 
       function moveScrubberKnob(m) {
-        if (scrubKnob && scrubXLin) scrubKnob.attr("cx", scrubXLin(m));
+        if (!scrubXLin) return;
+        const x = scrubXLin(m);
+        if (scrubKnob) scrubKnob.attr("cx", x);
+        if (scrubProgress) scrubProgress.attr("x2", x);
       }
 
       function buildMonthScrubber() {
@@ -892,6 +979,13 @@
           .attr("stroke", VIZ.sep)
           .attr("stroke-width", 5)
           .attr("stroke-linecap", "round");
+        scrubProgress = g
+          .append("line")
+          .attr("class", "scrub-progress")
+          .attr("x1", 0)
+          .attr("x2", scrubXLin(vizMonth))
+          .attr("y1", 0)
+          .attr("y2", 0);
         g.selectAll(".tlab")
           .data(d3.range(1, 13))
           .join("text")
@@ -902,7 +996,6 @@
           .attr("font-size", 10)
           .attr("fill", VIZ.muted)
           .text((m) => d3.timeFormat("%b")(new Date(2000, m - 1, 1)));
-
         const snapX = (xf) => {
           const m = Math.max(1, Math.min(12, Math.round(scrubXLin.invert(xf))));
           return { m, px: scrubXLin(m) };
@@ -912,11 +1005,12 @@
           .append("circle")
           .attr("class", "scrub-knob")
           .attr("cy", 0)
-          .attr("r", 10)
+          .attr("r", 12)
           .attr("fill", VIZ.ndvi)
           .attr("stroke", "#fff")
-          .attr("stroke-width", 2)
+          .attr("stroke-width", 3)
           .attr("cx", scrubXLin(vizMonth))
+          .style("filter", "drop-shadow(0 2px 5px rgba(15, 23, 42, 0.28))")
           .style("cursor", "grab");
 
         const drag = d3
@@ -924,12 +1018,13 @@
           .on("start", () => {
             pausedMidPlayback = false;
             stopPlay();
-            scrubKnob.style("cursor", "grabbing");
+            scrubKnob.attr("r", 14).style("cursor", "grabbing");
           })
           .on("drag", function (event) {
             const [xf] = d3.pointer(event, g.node());
             const { m, px } = snapX(xf);
             scrubKnob.attr("cx", px);
+            scrubProgress.attr("x2", px);
             if (m !== vizMonth) {
               vizMonth = m;
               vizYear = +yearSelect.property("value");
@@ -937,11 +1032,12 @@
             }
           })
           .on("end", function (event) {
-            scrubKnob.style("cursor", "grab");
+            scrubKnob.attr("r", 12).style("cursor", "grab");
             const [xf] = d3.pointer(event, g.node());
             const { m, px } = snapX(xf);
             vizMonth = m;
             scrubKnob.attr("cx", px);
+            scrubProgress.attr("x2", px);
             pausedMidPlayback = false;
             stopPlay();
             refresh();
@@ -954,6 +1050,7 @@
           .attr("y", -16)
           .attr("width", iw + 28)
           .attr("height", 44)
+          .attr("class", "scrub-hit")
           .attr("fill", "transparent")
           .style("cursor", "pointer")
           .on("click", function (event) {
@@ -961,6 +1058,7 @@
             const { m, px } = snapX(xf);
             vizMonth = m;
             scrubKnob.attr("cx", px);
+            scrubProgress.attr("x2", px);
             pausedMidPlayback = false;
             stopPlay();
             refresh();
@@ -1073,6 +1171,9 @@
 
           const rowsL = byRegion.get(nameL) || [];
           const rowsR = byRegion.get(nameR) || [];
+          const sameMonthRows = raw.filter((d) => d.year === vizYear && d.month === vizMonth);
+          renderTakeaway("#takeaway-l", takeawayItem(rowsL, rowL, nameL, vizYear, vizMonth, sameMonthRows));
+          renderTakeaway("#takeaway-r", takeawayItem(rowsR, rowR, nameR, vizYear, vizMonth, sameMonthRows));
           renderNdviTwoRegionCompare(rowsL, rowsR, nameL, nameR, vizYear, vizMonth, same);
           d3.select("#share-year-note").text(NDVI_CHART_NOTE_OPEN);
 
@@ -1085,6 +1186,8 @@
               if (bboxR) prefetchTileUrl(buildWmsUrl(bboxR, dateKey(vizYear, m), mapW, hR));
             }
           }, 0);
+          if (bboxL && hL) prefetchYearTiles(bboxL, vizYear, mapW, hL);
+          if (bboxR && hR) prefetchYearTiles(bboxR, vizYear, mapW, hR);
         } else {
           mainGridSel.style("--map-compare-h", null);
           d3.select("#map-zoom-viewport-l").style("aspect-ratio", null).style("height", null);
@@ -1111,6 +1214,7 @@
                 prefetchTileUrl(buildWmsUrl(bboxL, dateKey(vizYear, m), mapW, hL));
               }
             }, 0);
+            prefetchYearTiles(bboxL, vizYear, mapW, hL);
           } else {
             d3.select("#map-zoom-viewport-l").style("aspect-ratio", null).style("height", null);
             prevMapZoomCtx.l = null;
@@ -1119,10 +1223,13 @@
 
           renderStats(rowHasDecodeMetrics(rowL) ? rowL : null, "#stats-l");
           renderShareBar(rowHasDecodeMetrics(rowL) ? rowL : null, "#share-bar-l");
+          d3.select("#takeaway-r").selectAll("*").remove();
           d3.select("#stats-r").selectAll("*").remove();
           d3.select("#share-bar-r").selectAll("*").remove();
 
           const rowsL = byRegion.get(nameL) || [];
+          const sameMonthRows = raw.filter((d) => d.year === vizYear && d.month === vizMonth);
+          renderTakeaway("#takeaway-l", takeawayItem(rowsL, rowL, nameL, vizYear, vizMonth, sameMonthRows));
           renderNdviYearVsBaseline(rowsL, nameL, vizYear, vizMonth);
           d3.select("#share-year-note").text(NDVI_CHART_NOTE_OPEN);
         }

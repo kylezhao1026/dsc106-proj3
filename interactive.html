@@ -92,6 +92,45 @@
       opacity: 0.45;
       cursor: not-allowed;
     }
+    .takeaway-card {
+      margin: 0 0 0.8rem;
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--ndvi-line);
+      border-radius: 8px;
+      background: #f8fafc;
+      padding: 0.7rem 0.8rem;
+    }
+    .takeaway-card[data-state="below"] { border-left-color: var(--stress); }
+    .takeaway-card[data-state="above"] { border-left-color: var(--healthy); }
+    .takeaway-card[data-state="missing"] { border-left-color: var(--mid); }
+    .insight-kicker {
+      margin: 0 0 0.25rem;
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .insight-title {
+      margin: 0 0 0.2rem;
+      font-size: 0.95rem;
+      font-weight: 750;
+      color: var(--text);
+    }
+    .insight-copy {
+      margin: 0;
+      font-size: 0.84rem;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+    .scrub-progress {
+      stroke: var(--ndvi-line);
+      stroke-width: 6;
+      stroke-linecap: round;
+    }
+    .scrub-hit {
+      cursor: pointer;
+    }
     .month-scrubber-block {
       width: 100%;
       display: flex;
@@ -601,6 +640,7 @@
       <div class="compare-row stress-row">
         <div class="panel">
           <h2 id="stress-panel-title-l">Stress assessment</h2>
+          <div id="takeaway-l" aria-label="Left region takeaway"></div>
           <div class="stats" id="stats-l"></div>
           <div class="stress-share-block">
             <p class="share-heading">Vegetation health share</p>
@@ -609,6 +649,7 @@
         </div>
         <div class="panel only-compare">
           <h2 id="stress-panel-title-r">Stress assessment — right</h2>
+          <div id="takeaway-r" aria-label="Right region takeaway"></div>
           <div class="stats" id="stats-r"></div>
           <div class="stress-share-block">
             <p class="share-heading">Vegetation health share</p>
